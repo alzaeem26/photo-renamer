@@ -21,19 +21,19 @@
 
     /* الشريط العلوي */
     header {
-      padding: 10px 14px;
+      padding: 10px 10px;
       background: #1e293b;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       font-size: 13px;
       border-bottom: 1px solid #334155;
       z-index: 10;
     }
     .app-title {
       font-weight: bold;
-      font-size: 14px;
+      font-size: 13px;
       color: #f8fafc;
       white-space: nowrap;
       overflow: hidden;
@@ -42,22 +42,23 @@
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       flex-shrink: 0;
     }
     .btn-header {
       background: #334155;
-      color: #f8fafc;
+      color: #cbd5e1;
       border: 1px solid #475569;
-      padding: 6px 9px;
+      padding: 6px 8px;
       border-radius: 8px;
-      font-size: 12px;
+      font-size: 11px;
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 3px;
+      white-space: nowrap;
     }
-    .btn-folder-active {
+    .btn-active-green {
       background: #065f46;
       border-color: #10b981;
       color: #ecfdf5;
@@ -65,7 +66,10 @@
     .btn-zip {
       background: #2563eb;
       border-color: #3b82f6;
+      color: #fff;
       font-weight: bold;
+      font-size: 11px;
+      padding: 6px 9px;
     }
     .btn-zip:disabled {
       opacity: 0.4;
@@ -100,7 +104,7 @@
       font-size: 13px;
       font-weight: bold;
       opacity: 0;
-      transition: opacity 0.25s;
+      transition: opacity 0.2s;
       pointer-events: none;
       z-index: 20;
     }
@@ -133,9 +137,6 @@
       flex-shrink: 0;
       font-size: 13px;
     }
-    .drawer-toggle-btn:active {
-      background: #334155;
-    }
     .history-items-wrap {
       display: flex;
       align-items: center;
@@ -156,11 +157,8 @@
       font-weight: 600;
       font-size: 12px;
     }
-    .history-item:active {
-      background: #334155;
-    }
 
-    /* القائمة العمودية الجانبية للصور المصورة */
+    /* القائمة العمودية الجانبية لجميع الصور */
     .side-drawer-overlay {
       position: fixed;
       inset: 0;
@@ -173,8 +171,8 @@
       top: 0;
       right: 0;
       bottom: 0;
-      width: 240px;
-      max-width: 75vw;
+      width: 250px;
+      max-width: 78vw;
       background: #1e293b;
       border-left: 1px solid #334155;
       display: flex;
@@ -184,9 +182,7 @@
       transition: transform 0.22s ease-out;
       box-shadow: -8px 0 25px rgba(0,0,0,0.6);
     }
-    .side-drawer.open {
-      transform: translateX(0);
-    }
+    .side-drawer.open { transform: translateX(0); }
     .drawer-header {
       padding: 14px;
       background: #0f172a;
@@ -218,15 +214,20 @@
     .drawer-photo-card {
       display: flex;
       align-items: center;
-      gap: 10px;
+      justify-content: space-between;
+      gap: 8px;
       background: #0f172a;
       border: 1px solid #334155;
       padding: 6px 8px;
       border-radius: 8px;
-      cursor: pointer;
     }
-    .drawer-photo-card:active {
-      border-color: #38bdf8;
+    .drawer-card-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      overflow: hidden;
+      cursor: pointer;
     }
     .drawer-thumb {
       width: 42px;
@@ -245,12 +246,20 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .drawer-del-btn {
+      background: transparent;
+      color: #ef4444;
+      border: none;
+      padding: 6px;
+      font-size: 14px;
+      cursor: pointer;
+    }
 
-    /* نافذة معاينة الصورة عند الضغط عليها */
+    /* نافذة معاينة الصورة */
     .viewer-modal {
       position: fixed;
       inset: 0;
-      background: rgba(15, 23, 42, 0.95);
+      background: rgba(15, 23, 42, 0.96);
       display: none;
       flex-direction: column;
       z-index: 60;
@@ -292,7 +301,6 @@
       max-height: 100%;
       border-radius: 10px;
       object-fit: contain;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.7);
     }
 
     /* أزرار التحكم السفلية */
@@ -416,9 +424,16 @@
     <span class="app-title">كاميرا الزعيم للتصوير</span>
 
     <div class="header-actions">
-      <button class="btn-header" id="pickFolderBtn" title="تحديد مجلد للحفظ المباشر بدون إشعارات">
+      <!-- زر تحديد مجلد للحفظ المباشر لمرة واحدة -->
+      <button class="btn-header" id="pickFolderBtn" title="اختيار مجلد للحفظ المباشر لمرة واحدة">
         📁 <span id="folderLabel">مجلد</span>
       </button>
+
+      <!-- زر تفعيل/تعطيل التنزيل الفردي الفوري -->
+      <button class="btn-header" id="toggleAutoDlBtn" title="تنزيل كل صورة منفردة فوراً">
+        فوري: <strong id="autoDlState">لا</strong>
+      </button>
+
       <button class="btn-header btn-zip" id="exportZipBtn" disabled>
         📦 ZIP (<span id="zipCount">0</span>)
       </button>
@@ -451,7 +466,7 @@
   <div class="side-drawer-overlay" id="drawerOverlay"></div>
   <aside class="side-drawer" id="sideDrawer">
     <div class="drawer-header">
-      <span>الصور المصورة (<span id="drawerTotalCount">0</span>)</span>
+      <span>الصور المحفوظة (<span id="drawerTotalCount">0</span>)</span>
       <button class="drawer-close" id="closeDrawerBtn">✕</button>
     </div>
     <div class="drawer-list" id="drawerList">
@@ -459,7 +474,7 @@
     </div>
   </aside>
 
-  <!-- نافذة معاينة الصورة عند الضغط عليها -->
+  <!-- نافذة معاينة الصورة -->
   <div class="viewer-modal" id="photoViewerModal">
     <div class="viewer-header">
       <span class="viewer-title" id="viewerFileName">10.jpg</span>
@@ -494,6 +509,8 @@
     const clearSessionBtn = document.getElementById('clearSessionBtn');
     const pickFolderBtn = document.getElementById('pickFolderBtn');
     const folderLabel = document.getElementById('folderLabel');
+    const toggleAutoDlBtn = document.getElementById('toggleAutoDlBtn');
+    const autoDlState = document.getElementById('autoDlState');
     const exportZipBtn = document.getElementById('exportZipBtn');
     const toastMsg = document.getElementById('toastMsg');
 
@@ -504,7 +521,6 @@
     const discardBtn = document.getElementById('discardBtn');
     const historyList = document.getElementById('historyList');
 
-    // عناصر القائمة الجانبية والمعاينة
     const openDrawerBtn = document.getElementById('openDrawerBtn');
     const closeDrawerBtn = document.getElementById('closeDrawerBtn');
     const drawerOverlay = document.getElementById('drawerOverlay');
@@ -524,14 +540,98 @@
     let directoryHandle = null;
     let sessionPhotos = [];
     let isNumericMode = true;
+    let autoDownloadEach = false;
+    let db = null;
+
+    // تهيئة قاعدة البيانات المحلية الدائمة (IndexedDB)
+    function initDB() {
+      return new Promise((resolve) => {
+        const request = indexedDB.open('AlzaeemCameraDB', 1);
+        request.onupgradeneeded = (e) => {
+          const database = e.target.result;
+          if (!database.objectStoreNames.contains('photos')) {
+            database.createObjectStore('photos', { keyPath: 'id', autoIncrement: true });
+          }
+        };
+        request.onsuccess = (e) => {
+          db = e.target.result;
+          loadPhotosFromDB();
+          resolve();
+        };
+        request.onerror = () => resolve();
+      });
+    }
+
+    function savePhotoToDB(photoObj) {
+      if (!db) return;
+      const tx = db.transaction('photos', 'readwrite');
+      const store = tx.objectStore('photos');
+      const req = store.add({ name: photoObj.name, blob: photoObj.blob });
+      req.onsuccess = (e) => {
+        photoObj.id = e.target.result;
+      };
+    }
+
+    function deletePhotoFromDB(id) {
+      if (!db || !id) return;
+      const tx = db.transaction('photos', 'readwrite');
+      tx.objectStore('photos').delete(id);
+    }
+
+    function clearDB() {
+      if (!db) return;
+      const tx = db.transaction('photos', 'readwrite');
+      tx.objectStore('photos').clear();
+    }
+
+    function loadPhotosFromDB() {
+      if (!db) return;
+      const tx = db.transaction('photos', 'readonly');
+      const req = tx.objectStore('photos').getAll();
+      req.onsuccess = () => {
+        const records = req.result || [];
+        sessionPhotos = records.map(r => ({
+          id: r.id,
+          name: r.name,
+          blob: r.blob,
+          dataUrl: URL.createObjectURL(r.blob)
+        }));
+        updateHistoryUI();
+      };
+    }
 
     function showToast(text) {
       toastMsg.textContent = text;
       toastMsg.classList.add('show');
-      setTimeout(() => toastMsg.classList.remove('show'), 1800);
+      setTimeout(() => toastMsg.classList.remove('show'), 1600);
     }
 
-    // التحكم في القائمة الجانبية
+    // 1. اختيار مجلد للحفظ المباشر لمرة واحدة
+    pickFolderBtn.addEventListener('click', async () => {
+      if (!('showDirectoryPicker' in window)) {
+        alert('هذا المتصفح لا يدعم ربط مجلد مباشر. يتم حفظ الصور تلقائياً بصمت داخل التطبيق ويمكنك تنزيلها كلها دفعة واحدة عبر زر ZIP.');
+        return;
+      }
+      try {
+        directoryHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        folderLabel.textContent = directoryHandle.name;
+        pickFolderBtn.classList.add('btn-active-green');
+        showToast(`✓ تم ربط المجلد: ${directoryHandle.name}`);
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          alert('لم يتم منح صلاحية الوصول للمجلد.');
+        }
+      }
+    });
+
+    // 2. تبديل خيار التنزيل الفردي الفوري
+    toggleAutoDlBtn.addEventListener('click', () => {
+      autoDownloadEach = !autoDownloadEach;
+      autoDlState.textContent = autoDownloadEach ? 'نعم' : 'لا';
+      toggleAutoDlBtn.classList.toggle('btn-active-green', autoDownloadEach);
+      showToast(autoDownloadEach ? 'تم تفعيل التنزيل الفوري لكل صورة' : 'تم إيقاف التنزيل الفردي');
+    });
+
     function openDrawer() {
       drawerOverlay.style.display = 'block';
       requestAnimationFrame(() => sideDrawer.classList.add('open'));
@@ -544,7 +644,6 @@
     closeDrawerBtn.addEventListener('click', closeDrawer);
     drawerOverlay.addEventListener('click', closeDrawer);
 
-    // فتح معاينة أي صورة دون التأثير على الكاميرا أو الجلسة
     function openPhotoViewer(index) {
       const photo = sessionPhotos[index];
       if (!photo) return;
@@ -557,22 +656,16 @@
       viewerFullImg.src = '';
     });
 
-    pickFolderBtn.addEventListener('click', async () => {
-      if (!('showDirectoryPicker' in window)) {
-        alert('متصفحك الحالي لا يدعم الحفظ المباشر في مجلد محدد. سيتم تنزيل الصور تلقائياً إلى مجلد التنزيلات (Downloads) أو يمكنك تصديرها كملف ZIP.');
-        return;
+    function deleteSinglePhoto(index) {
+      const photo = sessionPhotos[index];
+      if (!photo) return;
+      if (confirm(`حذف الصورة ${photo.name} من القائمة؟`)) {
+        deletePhotoFromDB(photo.id);
+        URL.revokeObjectURL(photo.dataUrl);
+        sessionPhotos.splice(index, 1);
+        updateHistoryUI();
       }
-      try {
-        directoryHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
-        folderLabel.textContent = directoryHandle.name;
-        pickFolderBtn.classList.add('btn-folder-active');
-        showToast(`تم ربط المجلد: ${directoryHandle.name}`);
-      } catch (err) {
-        if (err.name !== 'AbortError') {
-          alert('لم يتم منح صلاحية الوصول للمجلد.');
-        }
-      }
-    });
+    }
 
     toggleKbBtn.addEventListener('click', () => {
       isNumericMode = !isNumericMode;
@@ -598,7 +691,7 @@
         currentStream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = currentStream;
       } catch (err) {
-        alert('تعذر الوصول إلى الكاميرا. تأكد من فتح الصفحة عبر HTTPS ومنح صلاحية الكاميرا.');
+        alert('تعذر الوصول إلى الكاميرا. تأكد من منح صلاحية الكاميرا للمتصفح.');
       }
     }
 
@@ -626,7 +719,7 @@
 
       fileNameInput.value = '';
       renameModal.style.display = 'flex';
-      setTimeout(() => fileNameInput.focus(), 80);
+      setTimeout(() => fileNameInput.focus(), 60);
     });
 
     renameForm.addEventListener('submit', async (e) => {
@@ -637,27 +730,39 @@
       const safeName = rawName.replace(/[\\/:*?"<>|]/g, '-');
       const finalFileName = `${safeName}.jpg`;
 
-      // حفظ الصورة مع رابط المعاينة في ذاكرة الجلسة
-      sessionPhotos.push({
+      const photoObj = {
         name: finalFileName,
         blob: capturedBlob,
         dataUrl: capturedDataUrl
-      });
+      };
+
+      sessionPhotos.push(photoObj);
+      savePhotoToDB(photoObj);
       updateHistoryUI();
 
+      let savedToFolder = false;
+
+      // المسار الأول: إذا تم تحديد مجلد، احفظ فيه مباشرة بصمت وبدون نوافذ
       if (directoryHandle) {
         try {
           const fileHandle = await directoryHandle.getFileHandle(finalFileName, { create: true });
           const writable = await fileHandle.createWritable();
           await writable.write(capturedBlob);
           await writable.close();
+          savedToFolder = true;
           showToast(`✓ حُفظت في المجلد: ${finalFileName}`);
         } catch (err) {
-          triggerBrowserDownload(capturedDataUrl, finalFileName);
+          console.error('فشل الحفظ في المجلد:', err);
         }
-      } else {
+      }
+
+      // المسار الثاني: التنزيل الفردي فقط إذا كان مفعلاً يدوياً ولم يتم الحفظ في المجلد
+      if (!savedToFolder && autoDownloadEach) {
         triggerBrowserDownload(capturedDataUrl, finalFileName);
-        showToast(`✓ تم تنزيل: ${finalFileName}`);
+      }
+
+      if (!savedToFolder) {
+        showToast(`✓ حُفظت: ${finalFileName}`);
       }
 
       resetToCamera();
@@ -697,9 +802,9 @@
         const zipBlob = await zip.generateAsync({ type: 'blob' });
         const zipUrl = URL.createObjectURL(zipBlob);
         const dateStr = new Date().toISOString().slice(0, 10);
-        triggerBrowserDownload(zipUrl, `photos_${dateStr}.zip`);
-        setTimeout(() => URL.revokeObjectURL(zipUrl), 5000);
-        showToast('تم تصدير ملف ZIP بنجاح');
+        triggerBrowserDownload(zipUrl, `Alzaeem_Photos_${dateStr}.zip`);
+        setTimeout(() => URL.revokeObjectURL(zipUrl), 10000);
+        showToast('تم تجهيز ملف ZIP بنجاح');
       } catch (err) {
         alert('حدث خطأ أثناء إنشاء ملف ZIP.');
       } finally {
@@ -710,11 +815,13 @@
 
     clearSessionBtn.addEventListener('click', () => {
       if (sessionPhotos.length === 0) return;
-      if (confirm('هل تريد مسح سجل الجلسة الحالية من الذاكرة؟ (لن يتم حذف الصور المحفوظة على هاتفك)')) {
+      if (confirm('هل تريد مسح جميع الصور المحفوظة في هذه الجلسة؟')) {
+        sessionPhotos.forEach(p => URL.revokeObjectURL(p.dataUrl));
         sessionPhotos = [];
+        clearDB();
         updateHistoryUI();
         closeDrawer();
-        showToast('تم تصفير الجلسة');
+        showToast('تم مسح الجلسة');
       }
     });
 
@@ -731,7 +838,6 @@
         return;
       }
 
-      // تحديث شريط آخر 5 صور (الأحدث أولاً)
       const lastFive = sessionPhotos
         .map((item, idx) => ({ ...item, originalIndex: idx }))
         .slice(-5)
@@ -741,16 +847,18 @@
         .map(item => `<span class="history-item" onclick="openPhotoViewer(${item.originalIndex})">${item.name}</span>`)
         .join('');
 
-      // تحديث القائمة العمودية الجانبية بجميع الصور
       const allReversed = sessionPhotos
         .map((item, idx) => ({ ...item, originalIndex: idx }))
         .reverse();
 
       drawerList.innerHTML = allReversed
         .map(item => `
-          <div class="drawer-photo-card" onclick="openPhotoViewer(${item.originalIndex})">
-            <img class="drawer-thumb" src="${item.dataUrl}" alt="${item.name}">
-            <span class="drawer-photo-name">${item.name}</span>
+          <div class="drawer-photo-card">
+            <div class="drawer-card-left" onclick="openPhotoViewer(${item.originalIndex})">
+              <img class="drawer-thumb" src="${item.dataUrl}" alt="${item.name}">
+              <span class="drawer-photo-name">${item.name}</span>
+            </div>
+            <button class="drawer-del-btn" onclick="deleteSinglePhoto(${item.originalIndex})" title="حذف">🗑️</button>
           </div>
         `)
         .join('');
@@ -766,6 +874,7 @@
       video.style.display = 'block';
     }
 
+    initDB();
     startCamera();
   </script>
 </body>
