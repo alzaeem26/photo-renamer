@@ -2,10 +2,11 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
   <meta name="theme-color" content="#0f172a">
-  <title>كاميرا التسمية الفورية</title>
-  <!-- مكتبة JSZip لتجميع الصور في ملف مضغوط واحد -->
+  <meta name="application-name" content="كاميرا الزعيم للتصوير">
+  <meta name="apple-mobile-web-app-title" content="كاميرا الزعيم للتصوير">
+  <title>كاميرا الزعيم للتصوير</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
@@ -29,16 +30,25 @@
       font-size: 13px;
       border-bottom: 1px solid #334155;
     }
+    .app-title {
+      font-weight: bold;
+      font-size: 14px;
+      color: #f8fafc;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .header-actions {
       display: flex;
       align-items: center;
       gap: 6px;
+      flex-shrink: 0;
     }
     .btn-header {
       background: #334155;
       color: #f8fafc;
       border: 1px solid #475569;
-      padding: 6px 10px;
+      padding: 6px 9px;
       border-radius: 8px;
       font-size: 12px;
       cursor: pointer;
@@ -150,31 +160,35 @@
     /* نافذة التسمية المنبثقة */
     .modal-overlay {
       position: fixed;
-      inset: 0;
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(4px);
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(3px);
       display: none;
       flex-direction: column;
-      justify-content: flex-end;
+      justify-content: flex-start;
       padding: 16px;
+      padding-top: 24px;
       z-index: 50;
     }
     .modal-card {
       background: #1e293b;
       border: 1px solid #475569;
       border-radius: 16px;
-      padding: 18px;
+      padding: 14px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      margin-bottom: env(safe-area-inset-bottom);
+      gap: 10px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
     }
     .modal-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    .modal-header h3 { font-size: 15px; color: #e2e8f0; }
+    .modal-header h3 { font-size: 14px; color: #e2e8f0; }
     .kb-toggle {
       background: #334155;
       color: #93c5fd;
@@ -184,9 +198,9 @@
       font-size: 12px;
       cursor: pointer;
     }
-    input[type="text"] {
+    input[type="search"], input[type="text"] {
       width: 100%;
-      padding: 14px;
+      padding: 12px;
       font-size: 24px;
       font-weight: bold;
       border-radius: 10px;
@@ -196,6 +210,7 @@
       outline: none;
       text-align: center;
       direction: ltr;
+      -webkit-appearance: none;
     }
     .modal-actions {
       display: flex;
@@ -203,7 +218,7 @@
     }
     .btn-save {
       flex: 2;
-      padding: 14px;
+      padding: 12px;
       background: #10b981;
       color: #fff;
       border: none;
@@ -214,7 +229,7 @@
     }
     .btn-cancel {
       flex: 1;
-      padding: 14px;
+      padding: 12px;
       background: #ef4444;
       color: #fff;
       border: none;
@@ -228,13 +243,14 @@
 <body>
 
   <header>
-    <button class="btn-header" id="pickFolderBtn" title="تحديد مجلد للحفظ المباشر بدون إشعارات">
-      📁 <span id="folderLabel">تحديد مجلد</span>
-    </button>
+    <span class="app-title">كاميرا الزعيم للتصوير</span>
 
     <div class="header-actions">
+      <button class="btn-header" id="pickFolderBtn" title="تحديد مجلد للحفظ المباشر بدون إشعارات">
+        📁 <span id="folderLabel">مجلد</span>
+      </button>
       <button class="btn-header btn-zip" id="exportZipBtn" disabled>
-        📦 تصدير ZIP (<span id="zipCount">0</span>)
+        📦 ZIP (<span id="zipCount">0</span>)
       </button>
     </div>
   </header>
@@ -258,12 +274,12 @@
 
   <!-- نافذة إدخال الاسم -->
   <div class="modal-overlay" id="renameModal">
-    <form class="modal-card" id="renameForm">
+    <form class="modal-card" id="renameForm" autocomplete="off">
       <div class="modal-header">
         <h3>أدخل رقم أو اسم الصورة:</h3>
         <button type="button" class="kb-toggle" id="toggleKbBtn">لوحة: أرقام 123</button>
       </div>
-      <input type="text" id="fileNameInput" inputmode="numeric" placeholder="10" autocomplete="off" required>
+      <input type="search" id="fileNameInput" inputmode="numeric" enterkeyhint="done" placeholder="10" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" required>
       <div class="modal-actions">
         <button type="submit" class="btn-save">حفظ</button>
         <button type="button" class="btn-cancel" id="discardBtn">إلغاء</button>
@@ -281,7 +297,6 @@
     const pickFolderBtn = document.getElementById('pickFolderBtn');
     const folderLabel = document.getElementById('folderLabel');
     const exportZipBtn = document.getElementById('exportZipBtn');
-    const zipCount = document.getElementById('zipCount');
     const toastMsg = document.getElementById('toastMsg');
 
     const renameModal = document.getElementById('renameModal');
@@ -295,18 +310,16 @@
     let useBackCamera = true;
     let capturedBlob = null;
     let capturedDataUrl = null;
-    let directoryHandle = null; // مقبض المجلد المختار
-    let sessionPhotos = [];     // لتخزين الصور لتصدير ZIP
+    let directoryHandle = null;
+    let sessionPhotos = [];
     let isNumericMode = true;
 
-    // إظهار رسالة تأكيد سريعة
     function showToast(text) {
       toastMsg.textContent = text;
       toastMsg.classList.add('show');
       setTimeout(() => toastMsg.classList.remove('show'), 1800);
     }
 
-    // 1. اختيار مجلد الحفظ المباشر (File System Access API)
     pickFolderBtn.addEventListener('click', async () => {
       if (!('showDirectoryPicker' in window)) {
         alert('متصفحك الحالي لا يدعم الحفظ المباشر في مجلد محدد. سيتم تنزيل الصور تلقائياً إلى مجلد التنزيلات (Downloads) أو يمكنك تصديرها كملف ZIP.');
@@ -319,13 +332,11 @@
         showToast(`تم ربط المجلد: ${directoryHandle.name}`);
       } catch (err) {
         if (err.name !== 'AbortError') {
-          console.error(err);
           alert('لم يتم منح صلاحية الوصول للمجلد.');
         }
       }
     });
 
-    // 2. تبديل نوع لوحة المفاتيح (أرقام / نص)
     toggleKbBtn.addEventListener('click', () => {
       isNumericMode = !isNumericMode;
       fileNameInput.setAttribute('inputmode', isNumericMode ? 'numeric' : 'text');
@@ -334,7 +345,6 @@
       setTimeout(() => fileNameInput.focus(), 50);
     });
 
-    // تشغيل الكاميرا
     async function startCamera() {
       if (currentStream) {
         currentStream.getTracks().forEach(track => track.stop());
@@ -360,7 +370,6 @@
       startCamera();
     });
 
-    // التقاط الصورة
     captureBtn.addEventListener('click', () => {
       if (!video.videoWidth) return;
 
@@ -383,7 +392,6 @@
       setTimeout(() => fileNameInput.focus(), 80);
     });
 
-    // حفظ الصورة بالاسم المدخل
     renameForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       let rawName = fileNameInput.value.trim();
@@ -392,11 +400,9 @@
       const safeName = rawName.replace(/[\\/:*?"<>|]/g, '-');
       const finalFileName = `${safeName}.jpg`;
 
-      // إضافة الصورة لذاكرة الجلسة لتصدير ZIP لاحقاً
       sessionPhotos.push({ name: finalFileName, blob: capturedBlob });
       updateHistoryUI();
 
-      // المسار الأول: الحفظ المباشر داخل المجلد المختار بدون إشعار تنزيل
       if (directoryHandle) {
         try {
           const fileHandle = await directoryHandle.getFileHandle(finalFileName, { create: true });
@@ -405,11 +411,9 @@
           await writable.close();
           showToast(`✓ حُفظت في المجلد: ${finalFileName}`);
         } catch (err) {
-          console.error('فشل الحفظ المباشر، جاري التحويل للتنزيل العادي:', err);
           triggerBrowserDownload(capturedDataUrl, finalFileName);
         }
       } else {
-        // المسار الثاني: التنزيل المباشر للمتصفح إذا لم يتم تحديد مجلد
         triggerBrowserDownload(capturedDataUrl, finalFileName);
         showToast(`✓ تم تنزيل: ${finalFileName}`);
       }
@@ -426,7 +430,6 @@
       document.body.removeChild(link);
     }
 
-    // 3. تصدير جميع صور الجلسة في ملف ZIP واحد
     exportZipBtn.addEventListener('click', async () => {
       if (sessionPhotos.length === 0) return;
 
@@ -435,7 +438,6 @@
 
       try {
         const zip = new JSZip();
-        // التعامل مع الأسماء المكررة داخل الـ ZIP إن وجدت
         const usedNames = {};
 
         for (const item of sessionPhotos) {
@@ -458,14 +460,12 @@
         showToast('تم تصدير ملف ZIP بنجاح');
       } catch (err) {
         alert('حدث خطأ أثناء إنشاء ملف ZIP.');
-        console.error(err);
       } finally {
         exportZipBtn.disabled = false;
-        exportZipBtn.innerHTML = `📦 تصدير ZIP (<span id="zipCount">${sessionPhotos.length}</span>)`;
+        exportZipBtn.innerHTML = `📦 ZIP (<span id="zipCount">${sessionPhotos.length}</span>)`;
       }
     });
 
-    // مسح الجلسة الحالية للبدء بمجموعة جديدة
     clearSessionBtn.addEventListener('click', () => {
       if (sessionPhotos.length === 0) return;
       if (confirm('هل تريد مسح سجل الجلسة الحالية من الذاكرة؟ (لن يتم حذف الصور المحفوظة على هاتفك)')) {
