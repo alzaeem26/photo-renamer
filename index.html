@@ -29,6 +29,7 @@
       gap: 8px;
       font-size: 13px;
       border-bottom: 1px solid #334155;
+      z-index: 10;
     }
     .app-title {
       font-weight: bold;
@@ -105,25 +106,193 @@
     }
     .toast.show { opacity: 1; }
 
-    /* شريط آخر الصور المحفوظة */
+    /* شريط آخر 5 صور المحفوظة */
     .history-bar {
       background: #0f172a;
-      padding: 8px 14px;
+      padding: 7px 12px;
       font-size: 12px;
       color: #94a3b8;
-      white-space: nowrap;
-      overflow-x: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
       border-top: 1px solid #1e293b;
-      min-height: 36px;
+      min-height: 40px;
+      z-index: 10;
+    }
+    .drawer-toggle-btn {
+      background: #1e293b;
+      color: #38bdf8;
+      border: 1px solid #334155;
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      font-size: 13px;
+    }
+    .drawer-toggle-btn:active {
+      background: #334155;
+    }
+    .history-items-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      white-space: nowrap;
+      flex: 1;
     }
     .history-item {
       display: inline-block;
       background: #1e293b;
       color: #38bdf8;
-      padding: 2px 8px;
+      padding: 4px 10px;
       border-radius: 6px;
-      margin-left: 6px;
       border: 1px solid #334155;
+      cursor: pointer;
+      direction: ltr;
+      font-weight: 600;
+      font-size: 12px;
+    }
+    .history-item:active {
+      background: #334155;
+    }
+
+    /* القائمة العمودية الجانبية للصور المصورة */
+    .side-drawer-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: none;
+      z-index: 40;
+    }
+    .side-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 240px;
+      max-width: 75vw;
+      background: #1e293b;
+      border-left: 1px solid #334155;
+      display: flex;
+      flex-direction: column;
+      z-index: 45;
+      transform: translateX(100%);
+      transition: transform 0.22s ease-out;
+      box-shadow: -8px 0 25px rgba(0,0,0,0.6);
+    }
+    .side-drawer.open {
+      transform: translateX(0);
+    }
+    .drawer-header {
+      padding: 14px;
+      background: #0f172a;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+      font-weight: bold;
+    }
+    .drawer-close {
+      background: #334155;
+      color: #f8fafc;
+      border: none;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .drawer-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .drawer-photo-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      padding: 6px 8px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .drawer-photo-card:active {
+      border-color: #38bdf8;
+    }
+    .drawer-thumb {
+      width: 42px;
+      height: 42px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: #000;
+      flex-shrink: 0;
+    }
+    .drawer-photo-name {
+      font-size: 14px;
+      font-weight: bold;
+      color: #38bdf8;
+      direction: ltr;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* نافذة معاينة الصورة عند الضغط عليها */
+    .viewer-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.95);
+      display: none;
+      flex-direction: column;
+      z-index: 60;
+    }
+    .viewer-header {
+      padding: 12px 16px;
+      background: #1e293b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #334155;
+    }
+    .viewer-title {
+      font-size: 16px;
+      font-weight: bold;
+      color: #38bdf8;
+      direction: ltr;
+    }
+    .viewer-close-btn {
+      background: #ef4444;
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .viewer-body {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      overflow: hidden;
+    }
+    .viewer-body img {
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: 10px;
+      object-fit: contain;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.7);
     }
 
     /* أزرار التحكم السفلية */
@@ -134,6 +303,7 @@
       justify-content: space-between;
       align-items: center;
       border-top: 1px solid #334155;
+      z-index: 10;
     }
     .shutter-btn {
       width: 72px;
@@ -262,14 +432,42 @@
     <canvas id="canvas"></canvas>
   </div>
 
+  <!-- شريط آخر 5 صور مع زر فتح القائمة الجانبية -->
   <div class="history-bar">
-    آخر الأسماء: <span id="historyList">لا يوجد بعد</span>
+    <button class="drawer-toggle-btn" id="openDrawerBtn" title="عرض كل الصور المصورة">▲</button>
+    <span>آخر 5:</span>
+    <div class="history-items-wrap" id="historyList">
+      <span style="color:#64748b;">لا يوجد بعد</span>
+    </div>
   </div>
 
   <div class="controls">
     <button class="secondary-btn" id="switchCamBtn">تبديل الكاميرا</button>
     <button class="shutter-btn" id="captureBtn" aria-label="التقاط"></button>
     <button class="secondary-btn" id="clearSessionBtn">مسح الجلسة</button>
+  </div>
+
+  <!-- القائمة العمودية الجانبية لجميع الصور -->
+  <div class="side-drawer-overlay" id="drawerOverlay"></div>
+  <aside class="side-drawer" id="sideDrawer">
+    <div class="drawer-header">
+      <span>الصور المصورة (<span id="drawerTotalCount">0</span>)</span>
+      <button class="drawer-close" id="closeDrawerBtn">✕</button>
+    </div>
+    <div class="drawer-list" id="drawerList">
+      <p style="color:#64748b; font-size:13px; text-align:center; margin-top:20px;">لم يتم التقاط صور بعد</p>
+    </div>
+  </aside>
+
+  <!-- نافذة معاينة الصورة عند الضغط عليها -->
+  <div class="viewer-modal" id="photoViewerModal">
+    <div class="viewer-header">
+      <span class="viewer-title" id="viewerFileName">10.jpg</span>
+      <button class="viewer-close-btn" id="closeViewerBtn">إغلاق والمتابعة</button>
+    </div>
+    <div class="viewer-body">
+      <img id="viewerFullImg" src="" alt="معاينة الصورة">
+    </div>
   </div>
 
   <!-- نافذة إدخال الاسم -->
@@ -306,6 +504,19 @@
     const discardBtn = document.getElementById('discardBtn');
     const historyList = document.getElementById('historyList');
 
+    // عناصر القائمة الجانبية والمعاينة
+    const openDrawerBtn = document.getElementById('openDrawerBtn');
+    const closeDrawerBtn = document.getElementById('closeDrawerBtn');
+    const drawerOverlay = document.getElementById('drawerOverlay');
+    const sideDrawer = document.getElementById('sideDrawer');
+    const drawerList = document.getElementById('drawerList');
+    const drawerTotalCount = document.getElementById('drawerTotalCount');
+
+    const photoViewerModal = document.getElementById('photoViewerModal');
+    const viewerFileName = document.getElementById('viewerFileName');
+    const viewerFullImg = document.getElementById('viewerFullImg');
+    const closeViewerBtn = document.getElementById('closeViewerBtn');
+
     let currentStream = null;
     let useBackCamera = true;
     let capturedBlob = null;
@@ -319,6 +530,32 @@
       toastMsg.classList.add('show');
       setTimeout(() => toastMsg.classList.remove('show'), 1800);
     }
+
+    // التحكم في القائمة الجانبية
+    function openDrawer() {
+      drawerOverlay.style.display = 'block';
+      requestAnimationFrame(() => sideDrawer.classList.add('open'));
+    }
+    function closeDrawer() {
+      sideDrawer.classList.remove('open');
+      setTimeout(() => { drawerOverlay.style.display = 'none'; }, 220);
+    }
+    openDrawerBtn.addEventListener('click', openDrawer);
+    closeDrawerBtn.addEventListener('click', closeDrawer);
+    drawerOverlay.addEventListener('click', closeDrawer);
+
+    // فتح معاينة أي صورة دون التأثير على الكاميرا أو الجلسة
+    function openPhotoViewer(index) {
+      const photo = sessionPhotos[index];
+      if (!photo) return;
+      viewerFileName.textContent = photo.name;
+      viewerFullImg.src = photo.dataUrl;
+      photoViewerModal.style.display = 'flex';
+    }
+    closeViewerBtn.addEventListener('click', () => {
+      photoViewerModal.style.display = 'none';
+      viewerFullImg.src = '';
+    });
 
     pickFolderBtn.addEventListener('click', async () => {
       if (!('showDirectoryPicker' in window)) {
@@ -400,7 +637,12 @@
       const safeName = rawName.replace(/[\\/:*?"<>|]/g, '-');
       const finalFileName = `${safeName}.jpg`;
 
-      sessionPhotos.push({ name: finalFileName, blob: capturedBlob });
+      // حفظ الصورة مع رابط المعاينة في ذاكرة الجلسة
+      sessionPhotos.push({
+        name: finalFileName,
+        blob: capturedBlob,
+        dataUrl: capturedDataUrl
+      });
       updateHistoryUI();
 
       if (directoryHandle) {
@@ -471,6 +713,7 @@
       if (confirm('هل تريد مسح سجل الجلسة الحالية من الذاكرة؟ (لن يتم حذف الصور المحفوظة على هاتفك)')) {
         sessionPhotos = [];
         updateHistoryUI();
+        closeDrawer();
         showToast('تم تصفير الجلسة');
       }
     });
@@ -479,17 +722,38 @@
       const count = sessionPhotos.length;
       const zipSpan = document.getElementById('zipCount');
       if (zipSpan) zipSpan.textContent = count;
+      drawerTotalCount.textContent = count;
       exportZipBtn.disabled = count === 0;
 
       if (count === 0) {
-        historyList.textContent = 'لا يوجد بعد';
-      } else {
-        historyList.innerHTML = [...sessionPhotos]
-          .reverse()
-          .slice(0, 15)
-          .map(item => `<span class="history-item">${item.name}</span>`)
-          .join('');
+        historyList.innerHTML = '<span style="color:#64748b;">لا يوجد بعد</span>';
+        drawerList.innerHTML = '<p style="color:#64748b; font-size:13px; text-align:center; margin-top:20px;">لم يتم التقاط صور بعد</p>';
+        return;
       }
+
+      // تحديث شريط آخر 5 صور (الأحدث أولاً)
+      const lastFive = sessionPhotos
+        .map((item, idx) => ({ ...item, originalIndex: idx }))
+        .slice(-5)
+        .reverse();
+
+      historyList.innerHTML = lastFive
+        .map(item => `<span class="history-item" onclick="openPhotoViewer(${item.originalIndex})">${item.name}</span>`)
+        .join('');
+
+      // تحديث القائمة العمودية الجانبية بجميع الصور
+      const allReversed = sessionPhotos
+        .map((item, idx) => ({ ...item, originalIndex: idx }))
+        .reverse();
+
+      drawerList.innerHTML = allReversed
+        .map(item => `
+          <div class="drawer-photo-card" onclick="openPhotoViewer(${item.originalIndex})">
+            <img class="drawer-thumb" src="${item.dataUrl}" alt="${item.name}">
+            <span class="drawer-photo-name">${item.name}</span>
+          </div>
+        `)
+        .join('');
     }
 
     discardBtn.addEventListener('click', resetToCamera);
