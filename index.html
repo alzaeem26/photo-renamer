@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f172a">
+  <title>كاميرا التسمية الفورية</title>
+  <!-- مكتبة JSZip لتجميع الصور في ملف مضغوط واحد -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body {
+      background-color: #0f172a;
+      color: #f8fafc;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* الشريط العلوي */
+    header {
+      padding: 10px 14px;
+      background: #1e293b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      border-bottom: 1px solid #334155;
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-header {
+      background: #334155;
+      color: #f8fafc;
+      border: 1px solid #475569;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .btn-folder-active {
+      background: #065f46;
+      border-color: #10b981;
+      color: #ecfdf5;
+    }
+    .btn-zip {
+      background: #2563eb;
+      border-color: #3b82f6;
+      font-weight: bold;
+    }
+    .btn-zip:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* منطقة عرض الكاميرا */
+    .camera-container {
+      position: relative;
+      flex: 1;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    video, #previewImg {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #previewImg { display: none; }
+
+    /* إشعار عائم للتأكيد السريع */
+    .toast {
+      position: absolute;
+      top: 16px;
+      background: rgba(16, 185, 129, 0.95);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 99px;
+      font-size: 13px;
+      font-weight: bold;
+      opacity: 0;
+      transition: opacity 0.25s;
+      pointer-events: none;
+      z-index: 20;
+    }
+    .toast.show { opacity: 1; }
+
+    /* شريط آخر الصور المحفوظة */
+    .history-bar {
+      background: #0f172a;
+      padding: 8px 14px;
+      font-size: 12px;
+      color: #94a3b8;
+      white-space: nowrap;
+      overflow-x: auto;
+      border-top: 1px solid #1e293b;
+      min-height: 36px;
+    }
+    .history-item {
+      display: inline-block;
+      background: #1e293b;
+      color: #38bdf8;
+      padding: 2px 8px;
+      border-radius: 6px;
+      margin-left: 6px;
+      border: 1px solid #334155;
+    }
+
+    /* أزرار التحكم السفلية */
+    .controls {
+      padding: 16px 20px;
+      background: #1e293b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid #334155;
+    }
+    .shutter-btn {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: #fff;
+      border: 5px solid #94a3b8;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .shutter-btn:active { transform: scale(0.92); }
+
+    .secondary-btn {
+      background: #334155;
+      color: #f8fafc;
+      border: none;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      cursor: pointer;
+      min-width: 85px;
+    }
+
+    /* نافذة التسمية المنبثقة */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(4px);
+      display: none;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 16px;
+      z-index: 50;
+    }
+    .modal-card {
+      background: #1e293b;
+      border: 1px solid #475569;
+      border-radius: 16px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: env(safe-area-inset-bottom);
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-header h3 { font-size: 15px; color: #e2e8f0; }
+    .kb-toggle {
+      background: #334155;
+      color: #93c5fd;
+      border: 1px solid #475569;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 14px;
+      font-size: 24px;
+      font-weight: bold;
+      border-radius: 10px;
+      border: 2px solid #3b82f6;
+      background: #0f172a;
+      color: #fff;
+      outline: none;
+      text-align: center;
+      direction: ltr;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .btn-save {
+      flex: 2;
+      padding: 14px;
+      background: #10b981;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .btn-cancel {
+      flex: 1;
+      padding: 14px;
+      background: #ef4444;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    canvas { display: none; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <button class="btn-header" id="pickFolderBtn" title="تحديد مجلد للحفظ المباشر بدون إشعارات">
+      📁 <span id="folderLabel">تحديد مجلد</span>
+    </button>
+
+    <div class="header-actions">
+      <button class="btn-header btn-zip" id="exportZipBtn" disabled>
+        📦 تصدير ZIP (<span id="zipCount">0</span>)
+      </button>
+    </div>
+  </header>
+
+  <div class="camera-container">
+    <div class="toast" id="toastMsg">تم الحفظ</div>
+    <video id="video" autoplay playsinline></video>
+    <img id="previewImg" alt="معاينة">
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <div class="history-bar">
+    آخر الأسماء: <span id="historyList">لا يوجد بعد</span>
+  </div>
+
+  <div class="controls">
+    <button class="secondary-btn" id="switchCamBtn">تبديل الكاميرا</button>
+    <button class="shutter-btn" id="captureBtn" aria-label="التقاط"></button>
+    <button class="secondary-btn" id="clearSessionBtn">مسح الجلسة</button>
+  </div>
+
+  <!-- نافذة إدخال الاسم -->
+  <div class="modal-overlay" id="renameModal">
+    <form class="modal-card" id="renameForm">
+      <div class="modal-header">
+        <h3>أدخل رقم أو اسم الصورة:</h3>
+        <button type="button" class="kb-toggle" id="toggleKbBtn">لوحة: أرقام 123</button>
+      </div>
+      <input type="text" id="fileNameInput" inputmode="numeric" placeholder="10" autocomplete="off" required>
+      <div class="modal-actions">
+        <button type="submit" class="btn-save">حفظ</button>
+        <button type="button" class="btn-cancel" id="discardBtn">إلغاء</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const previewImg = document.getElementById('previewImg');
+    const captureBtn = document.getElementById('captureBtn');
+    const switchCamBtn = document.getElementById('switchCamBtn');
+    const clearSessionBtn = document.getElementById('clearSessionBtn');
+    const pickFolderBtn = document.getElementById('pickFolderBtn');
+    const folderLabel = document.getElementById('folderLabel');
+    const exportZipBtn = document.getElementById('exportZipBtn');
+    const zipCount = document.getElementById('zipCount');
+    const toastMsg = document.getElementById('toastMsg');
+
+    const renameModal = document.getElementById('renameModal');
+    const renameForm = document.getElementById('renameForm');
+    const fileNameInput = document.getElementById('fileNameInput');
+    const toggleKbBtn = document.getElementById('toggleKbBtn');
+    const discardBtn = document.getElementById('discardBtn');
+    const historyList = document.getElementById('historyList');
+
+    let currentStream = null;
+    let useBackCamera = true;
+    let capturedBlob = null;
+    let capturedDataUrl = null;
+    let directoryHandle = null; // مقبض المجلد المختار
+    let sessionPhotos = [];     // لتخزين الصور لتصدير ZIP
+    let isNumericMode = true;
+
+    // إظهار رسالة تأكيد سريعة
+    function showToast(text) {
+      toastMsg.textContent = text;
+      toastMsg.classList.add('show');
+      setTimeout(() => toastMsg.classList.remove('show'), 1800);
+    }
+
+    // 1. اختيار مجلد الحفظ المباشر (File System Access API)
+    pickFolderBtn.addEventListener('click', async () => {
+      if (!('showDirectoryPicker' in window)) {
+        alert('متصفحك الحالي لا يدعم الحفظ المباشر في مجلد محدد. سيتم تنزيل الصور تلقائياً إلى مجلد التنزيلات (Downloads) أو يمكنك تصديرها كملف ZIP.');
+        return;
+      }
+      try {
+        directoryHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        folderLabel.textContent = directoryHandle.name;
+        pickFolderBtn.classList.add('btn-folder-active');
+        showToast(`تم ربط المجلد: ${directoryHandle.name}`);
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error(err);
+          alert('لم يتم منح صلاحية الوصول للمجلد.');
+        }
+      }
+    });
+
+    // 2. تبديل نوع لوحة المفاتيح (أرقام / نص)
+    toggleKbBtn.addEventListener('click', () => {
+      isNumericMode = !isNumericMode;
+      fileNameInput.setAttribute('inputmode', isNumericMode ? 'numeric' : 'text');
+      toggleKbBtn.textContent = isNumericMode ? 'لوحة: أرقام 123' : 'لوحة: نص ABC';
+      fileNameInput.blur();
+      setTimeout(() => fileNameInput.focus(), 50);
+    });
+
+    // تشغيل الكاميرا
+    async function startCamera() {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+      try {
+        const constraints = {
+          video: {
+            facingMode: useBackCamera ? { ideal: 'environment' } : 'user',
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          },
+          audio: false
+        };
+        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = currentStream;
+      } catch (err) {
+        alert('تعذر الوصول إلى الكاميرا. تأكد من فتح الصفحة عبر HTTPS ومنح صلاحية الكاميرا.');
+      }
+    }
+
+    switchCamBtn.addEventListener('click', () => {
+      useBackCamera = !useBackCamera;
+      startCamera();
+    });
+
+    // التقاط الصورة
+    captureBtn.addEventListener('click', () => {
+      if (!video.videoWidth) return;
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      capturedDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      canvas.toBlob((blob) => {
+        capturedBlob = blob;
+      }, 'image/jpeg', 0.92);
+
+      previewImg.src = capturedDataUrl;
+      previewImg.style.display = 'block';
+      video.style.display = 'none';
+
+      fileNameInput.value = '';
+      renameModal.style.display = 'flex';
+      setTimeout(() => fileNameInput.focus(), 80);
+    });
+
+    // حفظ الصورة بالاسم المدخل
+    renameForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      let rawName = fileNameInput.value.trim();
+      if (!rawName || !capturedBlob) return;
+
+      const safeName = rawName.replace(/[\\/:*?"<>|]/g, '-');
+      const finalFileName = `${safeName}.jpg`;
+
+      // إضافة الصورة لذاكرة الجلسة لتصدير ZIP لاحقاً
+      sessionPhotos.push({ name: finalFileName, blob: capturedBlob });
+      updateHistoryUI();
+
+      // المسار الأول: الحفظ المباشر داخل المجلد المختار بدون إشعار تنزيل
+      if (directoryHandle) {
+        try {
+          const fileHandle = await directoryHandle.getFileHandle(finalFileName, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(capturedBlob);
+          await writable.close();
+          showToast(`✓ حُفظت في المجلد: ${finalFileName}`);
+        } catch (err) {
+          console.error('فشل الحفظ المباشر، جاري التحويل للتنزيل العادي:', err);
+          triggerBrowserDownload(capturedDataUrl, finalFileName);
+        }
+      } else {
+        // المسار الثاني: التنزيل المباشر للمتصفح إذا لم يتم تحديد مجلد
+        triggerBrowserDownload(capturedDataUrl, finalFileName);
+        showToast(`✓ تم تنزيل: ${finalFileName}`);
+      }
+
+      resetToCamera();
+    });
+
+    function triggerBrowserDownload(dataUrl, fileName) {
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // 3. تصدير جميع صور الجلسة في ملف ZIP واحد
+    exportZipBtn.addEventListener('click', async () => {
+      if (sessionPhotos.length === 0) return;
+
+      exportZipBtn.disabled = true;
+      exportZipBtn.textContent = 'جاري الضغط...';
+
+      try {
+        const zip = new JSZip();
+        // التعامل مع الأسماء المكررة داخل الـ ZIP إن وجدت
+        const usedNames = {};
+
+        for (const item of sessionPhotos) {
+          let fileName = item.name;
+          if (usedNames[fileName]) {
+            usedNames[fileName]++;
+            const base = fileName.replace(/\.jpg$/i, '');
+            fileName = `${base}_${usedNames[item.name]}.jpg`;
+          } else {
+            usedNames[fileName] = 1;
+          }
+          zip.file(fileName, item.blob);
+        }
+
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const zipUrl = URL.createObjectURL(zipBlob);
+        const dateStr = new Date().toISOString().slice(0, 10);
+        triggerBrowserDownload(zipUrl, `photos_${dateStr}.zip`);
+        setTimeout(() => URL.revokeObjectURL(zipUrl), 5000);
+        showToast('تم تصدير ملف ZIP بنجاح');
+      } catch (err) {
+        alert('حدث خطأ أثناء إنشاء ملف ZIP.');
+        console.error(err);
+      } finally {
+        exportZipBtn.disabled = false;
+        exportZipBtn.innerHTML = `📦 تصدير ZIP (<span id="zipCount">${sessionPhotos.length}</span>)`;
+      }
+    });
+
+    // مسح الجلسة الحالية للبدء بمجموعة جديدة
+    clearSessionBtn.addEventListener('click', () => {
+      if (sessionPhotos.length === 0) return;
+      if (confirm('هل تريد مسح سجل الجلسة الحالية من الذاكرة؟ (لن يتم حذف الصور المحفوظة على هاتفك)')) {
+        sessionPhotos = [];
+        updateHistoryUI();
+        showToast('تم تصفير الجلسة');
+      }
+    });
+
+    function updateHistoryUI() {
+      const count = sessionPhotos.length;
+      const zipSpan = document.getElementById('zipCount');
+      if (zipSpan) zipSpan.textContent = count;
+      exportZipBtn.disabled = count === 0;
+
+      if (count === 0) {
+        historyList.textContent = 'لا يوجد بعد';
+      } else {
+        historyList.innerHTML = [...sessionPhotos]
+          .reverse()
+          .slice(0, 15)
+          .map(item => `<span class="history-item">${item.name}</span>`)
+          .join('');
+      }
+    }
+
+    discardBtn.addEventListener('click', resetToCamera);
+
+    function resetToCamera() {
+      capturedBlob = null;
+      capturedDataUrl = null;
+      renameModal.style.display = 'none';
+      previewImg.style.display = 'none';
+      video.style.display = 'block';
+    }
+
+    startCamera();
+  </script>
+</body>
+</html>
