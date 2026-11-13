@@ -15,30 +15,55 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
     body {
-      background-color: #0f172a;
+      background-color: #060b14;
       color: #f8fafc;
       height: 100dvh;
-      display: flex;
-      flex-direction: column;
+      position: relative;
       overflow: hidden;
       user-select: none;
     }
 
-    /* الشريط العلوي */
+    /* منطقة عرض الكاميرا ممتدة لكامل الشاشة خلف الألواح البلورية */
+    .camera-container {
+      position: absolute;
+      inset: 0;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      z-index: 1;
+    }
+    video, #previewImg {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #previewImg { display: none; }
+
+    /* الشريط العلوي البلوري بنفس الحجم المدمج */
     header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
       padding: 8px 10px;
-      background: #1e293b;
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(14px) saturate(150%);
+      -webkit-backdrop-filter: blur(14px) saturate(150%);
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 5px;
-      border-bottom: 1px solid #334155;
-      z-index: 10;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+      z-index: 20;
     }
     .app-title {
       font-weight: bold;
       font-size: 13px;
       color: #f8fafc;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -50,68 +75,63 @@
       flex-shrink: 0;
     }
     .btn-header {
-      background: #334155;
-      color: #e2e8f0;
-      border: 1px solid #475569;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #f1f5f9;
+      border: 1px solid rgba(255, 255, 255, 0.2);
       padding: 5px 7px;
-      border-radius: 7px;
+      border-radius: 8px;
       font-size: 11px;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 3px;
       white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn-header:active {
+      background: rgba(255, 255, 255, 0.22);
     }
     .btn-active-green {
-      background: #065f46;
-      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.28);
+      border-color: rgba(52, 211, 153, 0.65);
       color: #ecfdf5;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
     }
     .btn-db-loaded {
-      background: #4338ca;
-      border-color: #6366f1;
+      background: rgba(99, 102, 241, 0.3);
+      border-color: rgba(129, 140, 248, 0.65);
       color: #eef2ff;
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.25);
     }
     .btn-zip {
-      background: #2563eb;
-      border-color: #3b82f6;
+      background: rgba(56, 189, 248, 0.26);
+      border-color: rgba(125, 211, 252, 0.6);
       color: #fff;
       font-weight: bold;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
     }
     .btn-header:disabled {
       opacity: 0.4;
       cursor: not-allowed;
+      box-shadow: none;
     }
-
-    /* منطقة عرض الكاميرا */
-    .camera-container {
-      position: relative;
-      flex: 1;
-      background: #000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-    }
-    video, #previewImg {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    #previewImg { display: none; }
 
     /* مؤشر التركيز باللمس */
     .focus-ring {
       position: absolute;
       width: 64px;
       height: 64px;
-      border: 2px solid #facc15;
-      border-radius: 12px;
+      border: 2px solid rgba(125, 211, 252, 0.9);
+      background: rgba(56, 189, 248, 0.08);
+      border-radius: 14px;
       transform: translate(-50%, -50%) scale(1.2);
       pointer-events: none;
       opacity: 0;
       transition: transform 0.15s ease-out, opacity 0.2s;
       z-index: 15;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.4);
     }
     .focus-ring.active {
       opacity: 1;
@@ -120,8 +140,8 @@
 
     /* أزرار الكاميرا العائمة */
     .cam-overlay-tools {
-      position: absolute;
-      top: 12px;
+      position: fixed;
+      top: 52px;
       left: 12px;
       right: 12px;
       display: flex;
@@ -132,55 +152,66 @@
     }
     .floating-tool-btn {
       pointer-events: auto;
-      background: rgba(15, 23, 42, 0.65);
-      backdrop-filter: blur(4px);
-      color: #fff;
-      border: 1px solid rgba(255,255,255,0.2);
-      padding: 6px 10px;
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      padding: 6px 11px;
       border-radius: 99px;
       font-size: 12px;
       cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
     }
     .floating-tool-btn.torch-on {
-      background: #eab308;
+      background: rgba(250, 204, 21, 0.85);
       color: #0f172a;
       font-weight: bold;
+      border-color: #fef08a;
+      box-shadow: 0 0 15px rgba(250, 204, 21, 0.5);
     }
 
     /* شريط التقريب Zoom */
     .zoom-bar {
-      position: absolute;
-      bottom: 12px;
+      position: fixed;
+      bottom: 148px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(15, 23, 42, 0.65);
-      backdrop-filter: blur(4px);
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       padding: 5px 12px;
       border-radius: 99px;
       display: none;
       align-items: center;
       gap: 8px;
       z-index: 15;
-      border: 1px solid rgba(255,255,255,0.15);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
     }
     .zoom-bar input[type="range"] {
       width: 130px;
-      accent-color: #38bdf8;
+      accent-color: #7dd3fc;
     }
     .zoom-label {
       font-size: 11px;
       font-weight: bold;
-      color: #38bdf8;
+      color: #7dd3fc;
       min-width: 30px;
       text-align: center;
       direction: ltr;
     }
 
-    /* إشعار عائم */
+    /* إشعار عائم بلوري */
     .toast {
-      position: absolute;
-      top: 52px;
-      background: rgba(16, 185, 129, 0.95);
+      position: fixed;
+      top: 54px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(16, 185, 129, 0.35);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(110, 231, 183, 0.65);
       color: #fff;
       padding: 7px 16px;
       border-radius: 99px;
@@ -189,27 +220,41 @@
       opacity: 0;
       transition: opacity 0.2s;
       pointer-events: none;
-      z-index: 25;
+      z-index: 30;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+      white-space: nowrap;
     }
     .toast.show { opacity: 1; }
 
-    /* شريط آخر 5 صور */
+    /* الحاوية السفلية العائمة (شريط آخر 5 + أزرار التحكم) */
+    .bottom-dock {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      flex-direction: column;
+      z-index: 20;
+    }
+
+    /* شريط آخر 5 صور البلوري */
     .history-bar {
-      background: #0f172a;
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(14px) saturate(150%);
+      -webkit-backdrop-filter: blur(14px) saturate(150%);
       padding: 7px 12px;
       font-size: 12px;
-      color: #94a3b8;
+      color: #e2e8f0;
       display: flex;
       align-items: center;
       gap: 8px;
-      border-top: 1px solid #1e293b;
+      border-top: 1px solid rgba(255, 255, 255, 0.16);
       min-height: 40px;
-      z-index: 10;
     }
     .drawer-toggle-btn {
-      background: #1e293b;
-      color: #38bdf8;
-      border: 1px solid #334155;
+      background: rgba(255, 255, 255, 0.12);
+      color: #7dd3fc;
+      border: 1px solid rgba(255, 255, 255, 0.22);
       width: 28px;
       height: 28px;
       border-radius: 7px;
@@ -230,22 +275,66 @@
     }
     .history-item {
       display: inline-block;
-      background: #1e293b;
-      color: #38bdf8;
+      background: rgba(255, 255, 255, 0.12);
+      color: #bae6fd;
       padding: 4px 10px;
-      border-radius: 6px;
-      border: 1px solid #334155;
+      border-radius: 7px;
+      border: 1px solid rgba(186, 230, 253, 0.3);
       cursor: pointer;
       direction: ltr;
       font-weight: 600;
       font-size: 12px;
     }
 
-    /* القائمة الجانبية */
+    /* أزرار التحكم السفلية البلورية بنفس الأحجام */
+    .controls {
+      padding: 14px 20px;
+      background: rgba(15, 23, 42, 0.52);
+      backdrop-filter: blur(16px) saturate(160%);
+      -webkit-backdrop-filter: blur(16px) saturate(160%);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid rgba(255, 255, 255, 0.14);
+    }
+    .shutter-btn {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.85), rgba(186, 230, 253, 0.35));
+      backdrop-filter: blur(8px);
+      border: 3px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 0 0 4px rgba(125, 211, 252, 0.25), inset 0 2px 6px rgba(255, 255, 255, 0.8);
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.15s;
+    }
+    .shutter-btn:active {
+      transform: scale(0.92);
+      box-shadow: 0 0 0 6px rgba(125, 211, 252, 0.45);
+    }
+
+    .secondary-btn {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      cursor: pointer;
+      min-width: 85px;
+    }
+    .secondary-btn:active {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* القائمة الجانبية البلورية */
     .side-drawer-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.55);
+      background: rgba(6, 11, 20, 0.5);
+      backdrop-filter: blur(3px);
       display: none;
       z-index: 40;
     }
@@ -256,20 +345,22 @@
       bottom: 0;
       width: 280px;
       max-width: 84vw;
-      background: #1e293b;
-      border-left: 1px solid #334155;
+      background: rgba(15, 23, 42, 0.68);
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      border-left: 1px solid rgba(255, 255, 255, 0.2);
       display: flex;
       flex-direction: column;
       z-index: 45;
       transform: translateX(100%);
       transition: transform 0.22s ease-out;
-      box-shadow: -8px 0 25px rgba(0,0,0,0.6);
+      box-shadow: -8px 0 30px rgba(0, 0, 0, 0.5);
     }
     .side-drawer.open { transform: translateX(0); }
     .drawer-header {
       padding: 14px;
-      background: #0f172a;
-      border-bottom: 1px solid #334155;
+      background: rgba(255, 255, 255, 0.06);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -277,12 +368,12 @@
       font-weight: bold;
     }
     .drawer-close {
-      background: #334155;
+      background: rgba(255, 255, 255, 0.12);
       color: #f8fafc;
-      border: none;
+      border: 1px solid rgba(255, 255, 255, 0.2);
       width: 28px;
       height: 28px;
-      border-radius: 6px;
+      border-radius: 7px;
       cursor: pointer;
       font-size: 14px;
     }
@@ -299,10 +390,10 @@
       align-items: center;
       justify-content: space-between;
       gap: 6px;
-      background: #0f172a;
-      border: 1px solid #334155;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
       padding: 6px 8px;
-      border-radius: 8px;
+      border-radius: 10px;
     }
     .drawer-card-left {
       display: flex;
@@ -315,10 +406,11 @@
     .drawer-thumb {
       width: 40px;
       height: 40px;
-      border-radius: 6px;
+      border-radius: 7px;
       object-fit: cover;
       background: #000;
       flex-shrink: 0;
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
     .drawer-photo-info {
       display: flex;
@@ -328,7 +420,7 @@
     .drawer-photo-name {
       font-size: 13px;
       font-weight: bold;
-      color: #38bdf8;
+      color: #7dd3fc;
       direction: ltr;
       text-align: right;
       overflow: hidden;
@@ -337,7 +429,7 @@
     }
     .drawer-photo-sub {
       font-size: 11px;
-      color: #94a3b8;
+      color: #cbd5e1;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -356,35 +448,37 @@
       cursor: pointer;
     }
 
-    /* نافذة معاينة الصورة */
+    /* نافذة معاينة الصورة البلورية */
     .viewer-modal {
       position: fixed;
       inset: 0;
-      background: rgba(15, 23, 42, 0.96);
+      background: rgba(6, 11, 20, 0.85);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
       display: none;
       flex-direction: column;
       z-index: 60;
     }
     .viewer-header {
       padding: 12px 16px;
-      background: #1e293b;
+      background: rgba(255, 255, 255, 0.08);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid #334155;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.16);
     }
     .viewer-title {
       font-size: 16px;
       font-weight: bold;
-      color: #38bdf8;
+      color: #7dd3fc;
       direction: ltr;
     }
     .viewer-close-btn {
-      background: #ef4444;
+      background: rgba(239, 68, 68, 0.35);
+      border: 1px solid rgba(252, 165, 165, 0.6);
       color: #fff;
-      border: none;
       padding: 8px 16px;
-      border-radius: 8px;
+      border-radius: 9px;
       font-size: 13px;
       font-weight: bold;
       cursor: pointer;
@@ -400,48 +494,19 @@
     .viewer-body img {
       max-width: 100%;
       max-height: 100%;
-      border-radius: 10px;
+      border-radius: 12px;
       object-fit: contain;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6);
     }
 
-    /* أزرار التحكم السفلية */
-    .controls {
-      padding: 14px 20px;
-      background: #1e293b;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-top: 1px solid #334155;
-      z-index: 10;
-    }
-    .shutter-btn {
-      width: 70px;
-      height: 70px;
-      border-radius: 50%;
-      background: #fff;
-      border: 5px solid #94a3b8;
-      cursor: pointer;
-      transition: transform 0.1s;
-    }
-    .shutter-btn:active { transform: scale(0.92); }
-
-    .secondary-btn {
-      background: #334155;
-      color: #f8fafc;
-      border: none;
-      padding: 10px 12px;
-      border-radius: 10px;
-      font-size: 12px;
-      cursor: pointer;
-      min-width: 85px;
-    }
-
-    /* النوافذ المنبثقة */
+    /* النوافذ المنبثقة البلورية (التسمية + قاعدة البيانات) */
     .modal-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(15, 23, 42, 0.8);
-      backdrop-filter: blur(3px);
+      background: rgba(6, 11, 20, 0.55);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       display: none;
       flex-direction: column;
       justify-content: flex-start;
@@ -451,27 +516,29 @@
       overflow-y: auto;
     }
     .modal-card {
-      background: #1e293b;
-      border: 1px solid #475569;
-      border-radius: 16px;
+      background: linear-gradient(145deg, rgba(30, 41, 59, 0.65), rgba(15, 23, 42, 0.55));
+      backdrop-filter: blur(22px) saturate(170%);
+      -webkit-backdrop-filter: blur(22px) saturate(170%);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 18px;
       padding: 14px;
       display: flex;
       flex-direction: column;
       gap: 10px;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.25);
     }
     .modal-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    .modal-header h3 { font-size: 14px; color: #e2e8f0; }
+    .modal-header h3 { font-size: 14px; color: #f1f5f9; }
     .kb-toggle {
-      background: #334155;
-      color: #93c5fd;
-      border: 1px solid #475569;
+      background: rgba(255, 255, 255, 0.12);
+      color: #bae6fd;
+      border: 1px solid rgba(255, 255, 255, 0.22);
       padding: 4px 10px;
-      border-radius: 6px;
+      border-radius: 7px;
       font-size: 11px;
       cursor: pointer;
     }
@@ -480,14 +547,20 @@
       padding: 10px;
       font-size: 22px;
       font-weight: bold;
-      border-radius: 10px;
-      border: 2px solid #3b82f6;
-      background: #0f172a;
+      border-radius: 12px;
+      border: 1.5px solid rgba(125, 211, 252, 0.65);
+      background: rgba(255, 255, 255, 0.08);
       color: #fff;
       outline: none;
       text-align: center;
       direction: ltr;
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.25);
       -webkit-appearance: none;
+    }
+    input[type="search"]:focus, input[type="text"]:focus {
+      border-color: #7dd3fc;
+      background: rgba(255, 255, 255, 0.13);
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.3), inset 0 2px 8px rgba(0, 0, 0, 0.2);
     }
     select {
       font-size: 14px;
@@ -495,37 +568,41 @@
       text-align: right;
       border-width: 1px;
     }
+    select option {
+      background: #0f172a;
+      color: #fff;
+    }
 
-    /* بطاقة مطابقة الأصل من قاعدة البيانات */
+    /* بطاقة مطابقة الأصل البلورية */
     .asset-match-box {
       display: none;
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid #10b981;
-      border-radius: 10px;
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid rgba(52, 211, 153, 0.55);
+      border-radius: 11px;
       padding: 8px 10px;
       font-size: 12px;
       line-height: 1.5;
     }
     .asset-match-box.not-found {
-      background: rgba(148, 163, 184, 0.1);
-      border-color: #475569;
-      color: #94a3b8;
+      background: rgba(255, 255, 255, 0.07);
+      border-color: rgba(255, 255, 255, 0.2);
+      color: #cbd5e1;
     }
     .asset-title { color: #ecfdf5; font-weight: bold; font-size: 13px; }
-    .asset-code { color: #34d399; font-weight: bold; direction: ltr; display: inline-block; }
+    .asset-code { color: #6ee7b7; font-weight: bold; direction: ltr; display: inline-block; }
 
     /* تنبيه تكرار الاسم + صف اللواحق السريعة */
     .duplicate-box {
       display: none;
-      background: rgba(245, 158, 11, 0.15);
-      border: 1px solid #f59e0b;
-      border-radius: 10px;
+      background: rgba(245, 158, 11, 0.2);
+      border: 1px solid rgba(251, 191, 36, 0.6);
+      border-radius: 11px;
       padding: 9px;
       flex-direction: column;
       gap: 8px;
     }
     .duplicate-msg {
-      color: #fbbf24;
+      color: #fde68a;
       font-size: 12px;
       font-weight: bold;
       text-align: center;
@@ -537,18 +614,18 @@
       flex-wrap: wrap;
     }
     .suffix-chip {
-      background: #0f172a;
-      color: #93c5fd;
-      border: 1px solid #334155;
+      background: rgba(255, 255, 255, 0.12);
+      color: #bae6fd;
+      border: 1px solid rgba(255, 255, 255, 0.22);
       padding: 5px 10px;
-      border-radius: 7px;
+      border-radius: 8px;
       font-size: 12px;
       font-weight: bold;
       cursor: pointer;
       direction: ltr;
     }
     .suffix-chip:active {
-      background: #2563eb;
+      background: rgba(56, 189, 248, 0.4);
       color: #fff;
     }
     .duplicate-actions {
@@ -557,22 +634,22 @@
     }
     .btn-dup-auto {
       flex: 1;
-      background: #2563eb;
+      background: rgba(37, 99, 235, 0.55);
+      border: 1px solid rgba(147, 197, 253, 0.55);
       color: #fff;
-      border: none;
       padding: 8px;
-      border-radius: 7px;
+      border-radius: 8px;
       font-size: 12px;
       font-weight: bold;
       cursor: pointer;
     }
     .btn-dup-replace {
       flex: 1;
-      background: #d97706;
+      background: rgba(217, 119, 6, 0.55);
+      border: 1px solid rgba(253, 224, 71, 0.55);
       color: #fff;
-      border: none;
       padding: 8px;
-      border-radius: 7px;
+      border-radius: 8px;
       font-size: 12px;
       font-weight: bold;
       cursor: pointer;
@@ -585,23 +662,30 @@
     .btn-save {
       flex: 2;
       padding: 11px;
-      background: #10b981;
+      background: rgba(16, 185, 129, 0.45);
+      border: 1px solid rgba(110, 231, 183, 0.65);
       color: #fff;
-      border: none;
-      border-radius: 10px;
+      border-radius: 11px;
       font-size: 15px;
       font-weight: bold;
       cursor: pointer;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.25);
+    }
+    .btn-save:active {
+      background: rgba(16, 185, 129, 0.65);
     }
     .btn-cancel {
       flex: 1;
       padding: 11px;
-      background: #ef4444;
+      background: rgba(239, 68, 68, 0.35);
+      border: 1px solid rgba(252, 165, 165, 0.55);
       color: #fff;
-      border: none;
-      border-radius: 10px;
+      border-radius: 11px;
       font-size: 14px;
       cursor: pointer;
+    }
+    .btn-cancel:active {
+      background: rgba(239, 68, 68, 0.55);
     }
 
     .db-field-group {
@@ -609,7 +693,7 @@
       flex-direction: column;
       gap: 4px;
       font-size: 12px;
-      color: #cbd5e1;
+      color: #e2e8f0;
     }
     .checkbox-row {
       display: flex;
@@ -640,37 +724,39 @@
   </header>
 
   <div class="camera-container" id="cameraContainer">
-    <div class="toast" id="toastMsg">تم الحفظ</div>
-
-    <div class="cam-overlay-tools">
-      <button class="floating-tool-btn" id="torchBtn" style="display:none;">🔦 فلاش</button>
-      <span class="floating-tool-btn" id="offlineBadge" style="display:none; background:#b45309;">وضع أوفلاين</span>
-    </div>
-
-    <div class="focus-ring" id="focusRing"></div>
-
-    <div class="zoom-bar" id="zoomBar">
-      <span class="zoom-label" id="zoomValue">1.0x</span>
-      <input type="range" id="zoomSlider" min="1" max="4" step="0.1" value="1">
-    </div>
-
     <video id="video" autoplay playsinline></video>
     <img id="previewImg" alt="معاينة">
     <canvas id="canvas"></canvas>
   </div>
 
-  <div class="history-bar">
-    <button class="drawer-toggle-btn" id="openDrawerBtn" title="عرض كل الصور المصورة">▲</button>
-    <span>آخر 5:</span>
-    <div class="history-items-wrap" id="historyList">
-      <span style="color:#64748b;">لا يوجد بعد</span>
-    </div>
+  <div class="toast" id="toastMsg">تم الحفظ</div>
+
+  <div class="cam-overlay-tools">
+    <button class="floating-tool-btn" id="torchBtn" style="display:none;">🔦 فلاش</button>
+    <span class="floating-tool-btn" id="offlineBadge" style="display:none; background:rgba(180,83,9,0.7);">وضع أوفلاين</span>
   </div>
 
-  <div class="controls">
-    <button class="secondary-btn" id="switchCamBtn">تبديل الكاميرا</button>
-    <button class="shutter-btn" id="captureBtn" aria-label="التقاط"></button>
-    <button class="secondary-btn" id="clearSessionBtn">مسح الجلسة</button>
+  <div class="focus-ring" id="focusRing"></div>
+
+  <div class="zoom-bar" id="zoomBar">
+    <span class="zoom-label" id="zoomValue">1.0x</span>
+    <input type="range" id="zoomSlider" min="1" max="4" step="0.1" value="1">
+  </div>
+
+  <div class="bottom-dock">
+    <div class="history-bar">
+      <button class="drawer-toggle-btn" id="openDrawerBtn" title="عرض كل الصور المصورة">▲</button>
+      <span>آخر 5:</span>
+      <div class="history-items-wrap" id="historyList">
+        <span style="color:#94a3b8;">لا يوجد بعد</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="secondary-btn" id="switchCamBtn">تبديل الكاميرا</button>
+      <button class="shutter-btn" id="captureBtn" aria-label="التقاط"></button>
+      <button class="secondary-btn" id="clearSessionBtn">مسح الجلسة</button>
+    </div>
   </div>
 
   <!-- القائمة العمودية الجانبية لجميع الصور -->
@@ -681,7 +767,7 @@
       <button class="drawer-close" id="closeDrawerBtn">✕</button>
     </div>
     <div class="drawer-list" id="drawerList">
-      <p style="color:#64748b; font-size:13px; text-align:center; margin-top:20px;">لم يتم التقاط صور بعد</p>
+      <p style="color:#94a3b8; font-size:13px; text-align:center; margin-top:20px;">لم يتم التقاط صور بعد</p>
     </div>
   </aside>
 
@@ -745,7 +831,7 @@
         <button type="button" class="drawer-close" id="closeDbModalBtn">✕</button>
       </div>
 
-      <p style="font-size:12px; color:#94a3b8; line-height:1.5;">
+      <p style="font-size:12px; color:#cbd5e1; line-height:1.5;">
         في حال تحميل ملف Excel أو CSV، ستظهر علامة مائية برقم التسلسل وكود الأصل على الصورة. وفي حال عدم التحميل تُحفظ الصور بدون علامة مائية.
       </p>
 
@@ -773,9 +859,9 @@
         <button type="button" class="btn-save" id="saveDbMappingBtn">اعتماد وحفظ القاعدة</button>
       </div>
 
-      <div id="dbStatusFooter" style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #334155; padding-top:8px; margin-top:4px;">
-        <span id="loadedAssetsCount" style="font-size:12px; color:#38bdf8;">الأصول المحملة: 0</span>
-        <button type="button" id="clearDbAssetsBtn" style="background:#7f1d1d; color:#fecaca; border:none; padding:5px 10px; border-radius:6px; font-size:11px; cursor:pointer;">حذف القاعدة</button>
+      <div id="dbStatusFooter" style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,0.15); padding-top:8px; margin-top:4px;">
+        <span id="loadedAssetsCount" style="font-size:12px; color:#7dd3fc;">الأصول المحملة: 0</span>
+        <button type="button" id="clearDbAssetsBtn" style="background:rgba(239,68,68,0.35); color:#fecaca; border:1px solid rgba(252,165,165,0.4); padding:5px 10px; border-radius:7px; font-size:11px; cursor:pointer;">حذف القاعدة</button>
       </div>
     </div>
   </div>
@@ -817,7 +903,6 @@
     const replaceOldBtn = document.getElementById('replaceOldBtn');
     const historyList = document.getElementById('historyList');
 
-    // عناصر قاعدة بيانات الأصول
     const dbSettingsBtn = document.getElementById('dbSettingsBtn');
     const dbCountLabel = document.getElementById('dbCountLabel');
     const dbModal = document.getElementById('dbModal');
@@ -1016,7 +1101,6 @@
       }
     });
 
-    // البحث عن الأصل فقط إذا كان هناك ملف محمّل
     function lookupAssetByInput(rawText) {
       const clean = rawText.trim();
       if (!clean || !hasLoadedAssets()) {
@@ -1044,7 +1128,6 @@
       }
     }
 
-    // رسم العلامة المائية فقط في حال وجود ملف أصول محمّل ومطابقة للرقم
     function renderPhotoWithWatermark(sourceCanvas, seqText, assetInfo) {
       const outCanvas = document.createElement('canvas');
       outCanvas.width = sourceCanvas.width;
@@ -1227,11 +1310,9 @@
       setTimeout(() => fileNameInput.focus(), 50);
     });
 
-    // أزرار اللواحق السريعة (تعمل عند وجود تكرار)
     document.querySelectorAll('.suffix-chip').forEach(btn => {
       btn.addEventListener('click', () => {
         const suffix = btn.getAttribute('data-suffix');
-        // إزالة أي لاحقة سابقة إن وجدت ثم إضافة اللاحقة الجديدة
         const baseClean = fileNameInput.value.trim().split('-')[0];
         fileNameInput.value = baseClean + suffix;
         onInputChanged();
@@ -1299,7 +1380,6 @@
     });
 
     cameraContainer.addEventListener('click', async (e) => {
-      if (e.target.closest('button') || e.target.closest('.zoom-bar')) return;
       const rect = cameraContainer.getBoundingClientRect();
       focusRing.style.left = `${e.clientX - rect.left}px`;
       focusRing.style.top = `${e.clientY - rect.top}px`;
@@ -1388,7 +1468,6 @@
       if (nextFull) finalizeSave(nextFull, -1);
     });
 
-    // تنبيه تأكيد قبل حذف الصورة القديمة واستبدالها
     replaceOldBtn.addEventListener('click', () => {
       const raw = fileNameInput.value.trim().replace(/[\\/:*?"<>|]/g, '-');
       const targetName = `${raw}.jpg`;
@@ -1538,8 +1617,8 @@
       exportZipBtn.disabled = count === 0;
 
       if (count === 0) {
-        historyList.innerHTML = '<span style="color:#64748b;">لا يوجد بعد</span>';
-        drawerList.innerHTML = '<p style="color:#64748b; font-size:13px; text-align:center; margin-top:20px;">لم يتم التقاط صور بعد</p>';
+        historyList.innerHTML = '<span style="color:#94a3b8;">لا يوجد بعد</span>';
+        drawerList.innerHTML = '<p style="color:#94a3b8; font-size:13px; text-align:center; margin-top:20px;">لم يتم التقاط صور بعد</p>';
         return;
       }
 
