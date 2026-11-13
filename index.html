@@ -10,7 +10,6 @@
   <meta name="apple-mobile-web-app-title" content="كاميرا الزعيم">
   <link rel="manifest" href="manifest.json">
   <title>كاميرا الزعيم للتصوير</title>
-  <!-- مكتبة ضغط ZIP ومكتبة قراءة Excel/CSV -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
@@ -437,7 +436,7 @@
       min-width: 85px;
     }
 
-    /* النوافذ المنبثقة (التسمية + إعداد قاعدة البيانات) */
+    /* النوافذ المنبثقة */
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -602,7 +601,6 @@
       cursor: pointer;
     }
 
-    /* تنسيق نافذة إعداد قاعدة البيانات */
     .db-field-group {
       display: flex;
       flex-direction: column;
@@ -632,7 +630,7 @@
     <span class="app-title">كاميرا الزعيم</span>
 
     <div class="header-actions">
-      <button class="btn-header" id="dbSettingsBtn" title="استيراد قاعدة بيانات الأصول (Excel/CSV)">📊 <span id="dbCountLabel">الأصول</span></button>
+      <button class="btn-header" id="dbSettingsBtn" title="استيراد قاعدة بيانات الأصول (اختياري)">📊 <span id="dbCountLabel">الأصول</span></button>
       <button class="btn-header" id="pickFolderBtn" title="تحديد مجلد للحفظ المباشر">📁 <span id="folderLabel">مجلد</span></button>
       <button class="btn-header btn-zip" id="exportZipBtn" disabled>📦 ZIP (<span id="zipCount">0</span>)</button>
     </div>
@@ -658,7 +656,6 @@
     <canvas id="canvas"></canvas>
   </div>
 
-  <!-- شريط آخر 5 صور مع زر فتح القائمة الجانبية -->
   <div class="history-bar">
     <button class="drawer-toggle-btn" id="openDrawerBtn" title="عرض كل الصور المصورة">▲</button>
     <span>آخر 5:</span>
@@ -700,13 +697,13 @@
   <div class="modal-overlay" id="renameModal">
     <form class="modal-card" id="renameForm" autocomplete="off">
       <div class="modal-header">
-        <h3 id="modalTitleText">أدخل رقم التسلسل للصورة:</h3>
+        <h3 id="modalTitleText">أدخل رقم أو اسم الصورة:</h3>
         <button type="button" class="kb-toggle" id="toggleKbBtn">لوحة: أرقام 123</button>
       </div>
 
       <input type="search" id="fileNameInput" inputmode="numeric" enterkeyhint="done" placeholder="10" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" required>
 
-      <!-- نتيجة المطابقة الفورية مع قاعدة بيانات الأصول -->
+      <!-- نتيجة المطابقة الفورية مع قاعدة بيانات الأصول (تظهر فقط عند تحميل ملف Excel) -->
       <div class="asset-match-box" id="assetMatchBox">
         <div class="asset-title" id="matchedAssetName">اسم الأصل: -</div>
         <div>كود الأصل: <span class="asset-code" id="matchedAssetCode">-</span></div>
@@ -731,22 +728,22 @@
       </div>
 
       <div class="modal-actions">
-        <button type="submit" class="btn-save">حفظ وطباعة العلامة</button>
+        <button type="submit" class="btn-save" id="submitSaveBtn">حفظ</button>
         <button type="button" class="btn-cancel" id="discardBtn">إلغاء</button>
       </div>
     </form>
   </div>
 
-  <!-- نافذة استيراد وإعداد قاعدة بيانات الأصول -->
+  <!-- نافذة استيراد وإعداد قاعدة بيانات الأصول (اختيارية) -->
   <div class="modal-overlay" id="dbModal">
     <div class="modal-card">
       <div class="modal-header">
-        <h3>قاعدة بيانات الأصول (Excel / CSV)</h3>
+        <h3>قاعدة بيانات الأصول (اختياري)</h3>
         <button type="button" class="drawer-close" id="closeDbModalBtn">✕</button>
       </div>
 
       <p style="font-size:12px; color:#94a3b8; line-height:1.5;">
-        اختر ملف Excel أو CSV من جهازك ليتم ربط رقم التسلسل بكود الأصل واسمه وطباعتهما كعلامة مائية على الصور.
+        في حال تحميل ملف Excel أو CSV، ستظهر علامة مائية برقم التسلسل وكود الأصل على الصورة. وفي حال عدم التحميل تُحفظ الصور بدون علامة مائية.
       </p>
 
       <input type="file" id="excelFileInput" accept=".xlsx,.xls,.csv" style="font-size:13px; padding:8px; border-width:1px;">
@@ -809,6 +806,7 @@
     const renameForm = document.getElementById('renameForm');
     const fileNameInput = document.getElementById('fileNameInput');
     const toggleKbBtn = document.getElementById('toggleKbBtn');
+    const submitSaveBtn = document.getElementById('submitSaveBtn');
     const discardBtn = document.getElementById('discardBtn');
     const duplicateBox = document.getElementById('duplicateBox');
     const duplicateMsgText = document.getElementById('duplicateMsgText');
@@ -851,17 +849,20 @@
     let videoTrack = null;
     let useBackCamera = true;
     let torchEnabled = false;
-    let rawCapturedCanvas = null; // نحتفظ بالصورة الخام قبل الطباعة لإعادة طباعة العلامة إذا تغير الاسم
+    let rawCapturedCanvas = null;
     let directoryHandle = null;
     let sessionPhotos = [];
     let isNumericMode = true;
     let db = null;
     let editingIndex = null;
 
-    // خريطة الأصول المحملة: { "10": { name: "...", code: "..." } }
     let assetsMap = {};
     let parsedRawRows = [];
     let watermarkShowName = false;
+
+    function hasLoadedAssets() {
+      return Object.keys(assetsMap).length > 0;
+    }
 
     function updateOnlineStatus() {
       offlineBadge.style.display = navigator.onLine ? 'none' : 'inline-block';
@@ -870,7 +871,6 @@
     window.addEventListener('offline', updateOnlineStatus);
     updateOnlineStatus();
 
-    // قاعدة البيانات المحلية الدائمة (IndexedDB)
     function initDB() {
       return new Promise((resolve) => {
         const request = indexedDB.open('AlzaeemCameraDB_v2', 1);
@@ -924,13 +924,14 @@
       if (count > 0) {
         dbCountLabel.textContent = `الأصول (${count})`;
         dbSettingsBtn.classList.add('btn-db-loaded');
+        submitSaveBtn.textContent = 'حفظ وطباعة العلامة';
       } else {
         dbCountLabel.textContent = 'الأصول';
         dbSettingsBtn.classList.remove('btn-db-loaded');
+        submitSaveBtn.textContent = 'حفظ';
       }
     }
 
-    // فتح وإغلاق نافذة قاعدة بيانات الأصول
     dbSettingsBtn.addEventListener('click', () => {
       dbModal.style.display = 'flex';
     });
@@ -938,7 +939,6 @@
       dbModal.style.display = 'none';
     });
 
-    // قراءة ملف Excel أو CSV
     excelFileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -972,7 +972,6 @@
         sel.innerHTML = headers.map(h => `<option value="${h}">${h}</option>`).join('');
       });
 
-      // تخمين ذكي للأعمدة بناءً على أسمائها العربية أو الإنجليزية
       headers.forEach(h => {
         const lower = h.toLowerCase();
         if (lower.includes('تسلسل') || lower.includes('رقم') || lower.includes('seq') || lower.includes('id')) colSeqSelect.value = h;
@@ -1010,19 +1009,18 @@
         saveAssetsToDB();
         columnMappingSection.style.display = 'none';
         excelFileInput.value = '';
-        showToast('تم حذف قاعدة البيانات');
+        showToast('تم حذف القاعدة - الصور ستحفظ بدون علامة مائية');
       }
     });
 
-    // البحث عن الأصل أثناء كتابة الرقم في نافذة التسمية
+    // البحث عن الأصل فقط إذا كان هناك ملف محمّل
     function lookupAssetByInput(rawText) {
       const clean = rawText.trim();
-      if (!clean || Object.keys(assetsMap).length === 0) {
+      if (!clean || !hasLoadedAssets()) {
         assetMatchBox.style.display = 'none';
         return null;
       }
 
-      // المطابقة المباشرة أو استخراج الرقم الأساسي قبل الشرطة (مثل 15 من 15-2)
       const baseSeq = clean.split('-')[0].trim();
       const found = assetsMap[clean] || assetsMap[baseSeq];
 
@@ -1040,27 +1038,30 @@
       }
     }
 
-    // رسم العلامة المائية على الصورة بجودة عالية
+    // رسم العلامة المائية فقط في حال وجود ملف أصول محمّل ومطابقة للرقم
     function renderPhotoWithWatermark(sourceCanvas, seqText, assetInfo) {
       const outCanvas = document.createElement('canvas');
       outCanvas.width = sourceCanvas.width;
       outCanvas.height = sourceCanvas.height;
       const ctx = outCanvas.getContext('2d');
 
-      // رسم الصورة الأصلية
+      // رسم الصورة الأصلية النظيفة
       ctx.drawImage(sourceCanvas, 0, 0);
 
-      // بناء نص العلامة المائية
+      // إذا لم يتم تحميل ملف Excel أو لم يوجد تطابق، نعيد الصورة كما هي بدون أي علامة مائية
+      if (!hasLoadedAssets() || !assetInfo) {
+        return outCanvas;
+      }
+
       const parts = [`التسلسل: ${seqText}`];
-      if (assetInfo && assetInfo.code) {
+      if (assetInfo.code) {
         parts.push(`كود الأصل: ${assetInfo.code}`);
       }
-      if (watermarkShowName && assetInfo && assetInfo.name) {
+      if (watermarkShowName && assetInfo.name) {
         parts.push(assetInfo.name);
       }
       const watermarkText = parts.join('   |   ');
 
-      // ضبط حجم الخط ليتناسب مع أبعاد الصورة مهما كانت دقتها
       const baseDimension = Math.min(outCanvas.width, outCanvas.height);
       const fontSize = Math.max(22, Math.round(baseDimension * 0.032));
       ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`;
@@ -1072,21 +1073,18 @@
       const boxHeight = fontSize + paddingY * 2;
 
       const margin = Math.max(16, Math.round(baseDimension * 0.02));
-      const boxX = outCanvas.width - boxWidth - margin; // الزاوية السفلية اليمنى
+      const boxX = outCanvas.width - boxWidth - margin;
       const boxY = outCanvas.height - boxHeight - margin;
 
-      // رسم خلفية داكنة مستديرة الزوايا
       ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
       ctx.beginPath();
       ctx.roundRect(boxX, boxY, boxWidth, boxHeight, Math.round(fontSize * 0.35));
       ctx.fill();
 
-      // إطار خفيف للعلامة
       ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)';
       ctx.lineWidth = Math.max(2, Math.round(fontSize * 0.08));
       ctx.stroke();
 
-      // كتابة النص بلون واضح
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
@@ -1316,7 +1314,6 @@
       startCamera();
     });
 
-    // التقاط الصورة الخام
     captureBtn.addEventListener('click', () => {
       if (!video.videoWidth || renameModal.style.display === 'flex') return;
 
@@ -1331,7 +1328,8 @@
       video.style.display = 'none';
 
       editingIndex = null;
-      modalTitleText.textContent = 'أدخل رقم التسلسل للصورة:';
+      modalTitleText.textContent = hasLoadedAssets() ? 'أدخل رقم التسلسل للصورة:' : 'أدخل رقم أو اسم الصورة:';
+      submitSaveBtn.textContent = hasLoadedAssets() ? 'حفظ وطباعة العلامة' : 'حفظ';
       fileNameInput.value = '';
       assetMatchBox.style.display = 'none';
       duplicateBox.style.display = 'none';
@@ -1413,7 +1411,6 @@
       const matchedAsset = lookupAssetByInput(cleanSeq);
       const subInfoText = matchedAsset ? `${matchedAsset.code} - ${matchedAsset.name}` : '';
 
-      // حالة تعديل اسم صورة موجودة
       if (editingIndex !== null) {
         const item = sessionPhotos[editingIndex];
         item.name = finalFileName;
@@ -1427,25 +1424,25 @@
 
       if (!rawCapturedCanvas) return;
 
-      // دمج العلامة المائية في زاوية الصورة
-      const stampedCanvas = renderPhotoWithWatermark(rawCapturedCanvas, cleanSeq, matchedAsset);
-      const stampedDataUrl = stampedCanvas.toDataURL('image/jpeg', 0.92);
-      const stampedBlob = await new Promise(res => stampedCanvas.toBlob(res, 'image/jpeg', 0.92));
+      // تطبع العلامة المائية فقط إذا كان هناك ملف محمّل ومطابقة للرقم، وإلا تُحفظ الصورة نظيفة
+      const finalCanvas = renderPhotoWithWatermark(rawCapturedCanvas, cleanSeq, matchedAsset);
+      const finalDataUrl = finalCanvas.toDataURL('image/jpeg', 0.92);
+      const finalBlob = await new Promise(res => finalCanvas.toBlob(res, 'image/jpeg', 0.92));
 
       if (replaceIndex !== -1) {
         const oldItem = sessionPhotos[replaceIndex];
         URL.revokeObjectURL(oldItem.dataUrl);
         oldItem.name = finalFileName;
         oldItem.subInfo = subInfoText;
-        oldItem.blob = stampedBlob;
-        oldItem.dataUrl = stampedDataUrl;
+        oldItem.blob = finalBlob;
+        oldItem.dataUrl = finalDataUrl;
         updatePhotoInDB(oldItem);
       } else {
         const photoObj = {
           name: finalFileName,
           subInfo: subInfoText,
-          blob: stampedBlob,
-          dataUrl: stampedDataUrl
+          blob: finalBlob,
+          dataUrl: finalDataUrl
         };
         sessionPhotos.push(photoObj);
         savePhotoToDB(photoObj);
@@ -1457,14 +1454,14 @@
         try {
           const fileHandle = await directoryHandle.getFileHandle(finalFileName, { create: true });
           const writable = await fileHandle.createWritable();
-          await writable.write(stampedBlob);
+          await writable.write(finalBlob);
           await writable.close();
-          showToast(`✓ حُفظت بالعلامة: ${finalFileName}`);
+          showToast(`✓ حُفظت في المجلد: ${finalFileName}`);
         } catch (err) {
           showToast(`✓ حُفظت: ${finalFileName}`);
         }
       } else {
-        showToast(`✓ حُفظت بالعلامة: ${finalFileName}`);
+        showToast(`✓ حُفظت: ${finalFileName}`);
       }
 
       resetToCamera();
@@ -1496,7 +1493,7 @@
         const dateStr = new Date().toISOString().slice(0, 10);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `Alzaeem_Assets_${dateStr}.zip`;
+        link.download = `Alzaeem_Photos_${dateStr}.zip`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
