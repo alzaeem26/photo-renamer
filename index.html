@@ -10,7 +10,9 @@
   <meta name="apple-mobile-web-app-title" content="كاميرا الزعيم">
   <link rel="manifest" href="manifest.json">
   <title>كاميرا الزعيم للتصوير</title>
+  <!-- مكتبة ضغط ZIP ومكتبة قراءة Excel/CSV -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
     body {
@@ -30,7 +32,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       border-bottom: 1px solid #334155;
       z-index: 10;
     }
@@ -45,14 +47,14 @@
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
       flex-shrink: 0;
     }
     .btn-header {
       background: #334155;
       color: #e2e8f0;
       border: 1px solid #475569;
-      padding: 5px 8px;
+      padding: 5px 7px;
       border-radius: 7px;
       font-size: 11px;
       cursor: pointer;
@@ -65,6 +67,11 @@
       background: #065f46;
       border-color: #10b981;
       color: #ecfdf5;
+    }
+    .btn-db-loaded {
+      background: #4338ca;
+      border-color: #6366f1;
+      color: #eef2ff;
     }
     .btn-zip {
       background: #2563eb;
@@ -106,7 +113,6 @@
       opacity: 0;
       transition: transform 0.15s ease-out, opacity 0.2s;
       z-index: 15;
-      box-shadow: 0 0 10px rgba(250, 204, 21, 0.4);
     }
     .focus-ring.active {
       opacity: 1;
@@ -140,7 +146,6 @@
       background: #eab308;
       color: #0f172a;
       font-weight: bold;
-      border-color: #fef08a;
     }
 
     /* شريط التقريب Zoom */
@@ -172,7 +177,7 @@
       direction: ltr;
     }
 
-    /* إشعار عائم للتأكيد السريع */
+    /* إشعار عائم */
     .toast {
       position: absolute;
       top: 52px;
@@ -189,7 +194,7 @@
     }
     .toast.show { opacity: 1; }
 
-    /* شريط آخر 5 صور المحفوظة */
+    /* شريط آخر 5 صور */
     .history-bar {
       background: #0f172a;
       padding: 7px 12px;
@@ -237,7 +242,7 @@
       font-size: 12px;
     }
 
-    /* القائمة العمودية الجانبية */
+    /* القائمة الجانبية */
     .side-drawer-overlay {
       position: fixed;
       inset: 0;
@@ -250,8 +255,8 @@
       top: 0;
       right: 0;
       bottom: 0;
-      width: 270px;
-      max-width: 82vw;
+      width: 280px;
+      max-width: 84vw;
       background: #1e293b;
       border-left: 1px solid #334155;
       display: flex;
@@ -316,11 +321,24 @@
       background: #000;
       flex-shrink: 0;
     }
+    .drawer-photo-info {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
     .drawer-photo-name {
       font-size: 13px;
       font-weight: bold;
       color: #38bdf8;
       direction: ltr;
+      text-align: right;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .drawer-photo-sub {
+      font-size: 11px;
+      color: #94a3b8;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -419,11 +437,11 @@
       min-width: 85px;
     }
 
-    /* نافذة التسمية المنبثقة */
+    /* النوافذ المنبثقة (التسمية + إعداد قاعدة البيانات) */
     .modal-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(15, 23, 42, 0.78);
+      background: rgba(15, 23, 42, 0.8);
       backdrop-filter: blur(3px);
       display: none;
       flex-direction: column;
@@ -431,15 +449,16 @@
       padding: 12px;
       padding-top: 18px;
       z-index: 50;
+      overflow-y: auto;
     }
     .modal-card {
       background: #1e293b;
       border: 1px solid #475569;
       border-radius: 16px;
-      padding: 12px;
+      padding: 14px;
       display: flex;
       flex-direction: column;
-      gap: 9px;
+      gap: 10px;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
     }
     .modal-header {
@@ -447,7 +466,7 @@
       justify-content: space-between;
       align-items: center;
     }
-    .modal-header h3 { font-size: 13px; color: #e2e8f0; }
+    .modal-header h3 { font-size: 14px; color: #e2e8f0; }
     .kb-toggle {
       background: #334155;
       color: #93c5fd;
@@ -457,10 +476,10 @@
       font-size: 11px;
       cursor: pointer;
     }
-    input[type="search"], input[type="text"] {
+    input[type="search"], input[type="text"], select {
       width: 100%;
       padding: 10px;
-      font-size: 24px;
+      font-size: 22px;
       font-weight: bold;
       border-radius: 10px;
       border: 2px solid #3b82f6;
@@ -471,6 +490,30 @@
       direction: ltr;
       -webkit-appearance: none;
     }
+    select {
+      font-size: 14px;
+      direction: rtl;
+      text-align: right;
+      border-width: 1px;
+    }
+
+    /* بطاقة مطابقة الأصل من قاعدة البيانات */
+    .asset-match-box {
+      display: none;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid #10b981;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .asset-match-box.not-found {
+      background: rgba(148, 163, 184, 0.1);
+      border-color: #475569;
+      color: #94a3b8;
+    }
+    .asset-title { color: #ecfdf5; font-weight: bold; font-size: 13px; }
+    .asset-code { color: #34d399; font-weight: bold; direction: ltr; display: inline-block; }
 
     /* أزرار اللواحق السريعة */
     .quick-suffixes {
@@ -488,10 +531,6 @@
       font-weight: bold;
       cursor: pointer;
       direction: ltr;
-    }
-    .suffix-chip:active {
-      background: #2563eb;
-      color: #fff;
     }
 
     /* تنبيه تكرار الاسم */
@@ -562,16 +601,38 @@
       font-size: 14px;
       cursor: pointer;
     }
+
+    /* تنسيق نافذة إعداد قاعدة البيانات */
+    .db-field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+      color: #cbd5e1;
+    }
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #f8fafc;
+      padding: 4px 0;
+    }
+    .checkbox-row input {
+      width: 18px;
+      height: 18px;
+      accent-color: #10b981;
+    }
     canvas { display: none; }
   </style>
 </head>
 <body>
 
   <header>
-    <span class="app-title">كاميرا الزعيم للتصوير</span>
+    <span class="app-title">كاميرا الزعيم</span>
 
     <div class="header-actions">
-      <button class="btn-header" id="qualityBtn" title="تغيير دقة وحجم الصور">عالية</button>
+      <button class="btn-header" id="dbSettingsBtn" title="استيراد قاعدة بيانات الأصول (Excel/CSV)">📊 <span id="dbCountLabel">الأصول</span></button>
       <button class="btn-header" id="pickFolderBtn" title="تحديد مجلد للحفظ المباشر">📁 <span id="folderLabel">مجلد</span></button>
       <button class="btn-header btn-zip" id="exportZipBtn" disabled>📦 ZIP (<span id="zipCount">0</span>)</button>
     </div>
@@ -580,16 +641,13 @@
   <div class="camera-container" id="cameraContainer">
     <div class="toast" id="toastMsg">تم الحفظ</div>
 
-    <!-- أدوات الكاميرا العائمة -->
     <div class="cam-overlay-tools">
       <button class="floating-tool-btn" id="torchBtn" style="display:none;">🔦 فلاش</button>
       <span class="floating-tool-btn" id="offlineBadge" style="display:none; background:#b45309;">وضع أوفلاين</span>
     </div>
 
-    <!-- إطار التركيز باللمس -->
     <div class="focus-ring" id="focusRing"></div>
 
-    <!-- شريط التقريب Zoom -->
     <div class="zoom-bar" id="zoomBar">
       <span class="zoom-label" id="zoomValue">1.0x</span>
       <input type="range" id="zoomSlider" min="1" max="4" step="0.1" value="1">
@@ -638,17 +696,23 @@
     </div>
   </div>
 
-  <!-- نافذة إدخال الاسم -->
+  <!-- نافذة إدخال الرقم والتسمية -->
   <div class="modal-overlay" id="renameModal">
     <form class="modal-card" id="renameForm" autocomplete="off">
       <div class="modal-header">
-        <h3 id="modalTitleText">أدخل رقم أو اسم الصورة:</h3>
+        <h3 id="modalTitleText">أدخل رقم التسلسل للصورة:</h3>
         <button type="button" class="kb-toggle" id="toggleKbBtn">لوحة: أرقام 123</button>
       </div>
 
       <input type="search" id="fileNameInput" inputmode="numeric" enterkeyhint="done" placeholder="10" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" required>
 
-      <!-- أزرار اللواحق السريعة بلمسة واحدة -->
+      <!-- نتيجة المطابقة الفورية مع قاعدة بيانات الأصول -->
+      <div class="asset-match-box" id="assetMatchBox">
+        <div class="asset-title" id="matchedAssetName">اسم الأصل: -</div>
+        <div>كود الأصل: <span class="asset-code" id="matchedAssetCode">-</span></div>
+      </div>
+
+      <!-- أزرار اللواحق السريعة -->
       <div class="quick-suffixes">
         <button type="button" class="suffix-chip" data-suffix="-1">-1</button>
         <button type="button" class="suffix-chip" data-suffix="-2">-2</button>
@@ -657,7 +721,7 @@
         <button type="button" class="suffix-chip" data-suffix="-خلف">خلف</button>
       </div>
 
-      <!-- تنبيه التكرار الذكي -->
+      <!-- تنبيه التكرار -->
       <div class="duplicate-box" id="duplicateBox">
         <div class="duplicate-msg" id="duplicateMsgText">⚠️ الاسم موجود مسبقاً!</div>
         <div class="duplicate-actions">
@@ -667,10 +731,53 @@
       </div>
 
       <div class="modal-actions">
-        <button type="submit" class="btn-save">حفظ</button>
+        <button type="submit" class="btn-save">حفظ وطباعة العلامة</button>
         <button type="button" class="btn-cancel" id="discardBtn">إلغاء</button>
       </div>
     </form>
+  </div>
+
+  <!-- نافذة استيراد وإعداد قاعدة بيانات الأصول -->
+  <div class="modal-overlay" id="dbModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>قاعدة بيانات الأصول (Excel / CSV)</h3>
+        <button type="button" class="drawer-close" id="closeDbModalBtn">✕</button>
+      </div>
+
+      <p style="font-size:12px; color:#94a3b8; line-height:1.5;">
+        اختر ملف Excel أو CSV من جهازك ليتم ربط رقم التسلسل بكود الأصل واسمه وطباعتهما كعلامة مائية على الصور.
+      </p>
+
+      <input type="file" id="excelFileInput" accept=".xlsx,.xls,.csv" style="font-size:13px; padding:8px; border-width:1px;">
+
+      <div id="columnMappingSection" style="display:none; flex-direction:column; gap:8px; margin-top:4px;">
+        <div class="db-field-group">
+          <label>عمود رقم التسلسل (الذي تكتبه للصورة):</label>
+          <select id="colSeqSelect"></select>
+        </div>
+        <div class="db-field-group">
+          <label>عمود اسم الأصل:</label>
+          <select id="colNameSelect"></select>
+        </div>
+        <div class="db-field-group">
+          <label>عمود كود الأصل:</label>
+          <select id="colCodeSelect"></select>
+        </div>
+
+        <label class="checkbox-row">
+          <input type="checkbox" id="includeNameInWatermark">
+          <span>إظهار اسم الأصل أيضاً في العلامة المائية بجانب الكود</span>
+        </label>
+
+        <button type="button" class="btn-save" id="saveDbMappingBtn">اعتماد وحفظ القاعدة</button>
+      </div>
+
+      <div id="dbStatusFooter" style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #334155; padding-top:8px; margin-top:4px;">
+        <span id="loadedAssetsCount" style="font-size:12px; color:#38bdf8;">الأصول المحملة: 0</span>
+        <button type="button" id="clearDbAssetsBtn" style="background:#7f1d1d; color:#fecaca; border:none; padding:5px 10px; border-radius:6px; font-size:11px; cursor:pointer;">حذف القاعدة</button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -687,7 +794,6 @@
     const clearSessionBtn = document.getElementById('clearSessionBtn');
     const pickFolderBtn = document.getElementById('pickFolderBtn');
     const folderLabel = document.getElementById('folderLabel');
-    const qualityBtn = document.getElementById('qualityBtn');
     const exportZipBtn = document.getElementById('exportZipBtn');
     const toastMsg = document.getElementById('toastMsg');
 
@@ -710,6 +816,25 @@
     const replaceOldBtn = document.getElementById('replaceOldBtn');
     const historyList = document.getElementById('historyList');
 
+    // عناصر قاعدة بيانات الأصول
+    const dbSettingsBtn = document.getElementById('dbSettingsBtn');
+    const dbCountLabel = document.getElementById('dbCountLabel');
+    const dbModal = document.getElementById('dbModal');
+    const closeDbModalBtn = document.getElementById('closeDbModalBtn');
+    const excelFileInput = document.getElementById('excelFileInput');
+    const columnMappingSection = document.getElementById('columnMappingSection');
+    const colSeqSelect = document.getElementById('colSeqSelect');
+    const colNameSelect = document.getElementById('colNameSelect');
+    const colCodeSelect = document.getElementById('colCodeSelect');
+    const includeNameInWatermark = document.getElementById('includeNameInWatermark');
+    const saveDbMappingBtn = document.getElementById('saveDbMappingBtn');
+    const loadedAssetsCount = document.getElementById('loadedAssetsCount');
+    const clearDbAssetsBtn = document.getElementById('clearDbAssetsBtn');
+
+    const assetMatchBox = document.getElementById('assetMatchBox');
+    const matchedAssetName = document.getElementById('matchedAssetName');
+    const matchedAssetCode = document.getElementById('matchedAssetCode');
+
     const openDrawerBtn = document.getElementById('openDrawerBtn');
     const closeDrawerBtn = document.getElementById('closeDrawerBtn');
     const drawerOverlay = document.getElementById('drawerOverlay');
@@ -726,27 +851,17 @@
     let videoTrack = null;
     let useBackCamera = true;
     let torchEnabled = false;
-    let capturedBlob = null;
-    let capturedDataUrl = null;
+    let rawCapturedCanvas = null; // نحتفظ بالصورة الخام قبل الطباعة لإعادة طباعة العلامة إذا تغير الاسم
     let directoryHandle = null;
     let sessionPhotos = [];
     let isNumericMode = true;
     let db = null;
     let editingIndex = null;
 
-    // إعدادات الجودة
-    const qualityLevels = [
-      { label: 'عالية', maxDim: 1920, q: 0.92 },
-      { label: 'متوسطة', maxDim: 1280, q: 0.82 },
-      { label: 'خفيفة', maxDim: 960, q: 0.72 }
-    ];
-    let currentQualityIdx = 0;
-
-    qualityBtn.addEventListener('click', () => {
-      currentQualityIdx = (currentQualityIdx + 1) % qualityLevels.length;
-      qualityBtn.textContent = qualityLevels[currentQualityIdx].label;
-      showToast(`الدقة: ${qualityLevels[currentQualityIdx].label}`);
-    });
+    // خريطة الأصول المحملة: { "10": { name: "...", code: "..." } }
+    let assetsMap = {};
+    let parsedRawRows = [];
+    let watermarkShowName = false;
 
     function updateOnlineStatus() {
       offlineBadge.style.display = navigator.onLine ? 'none' : 'inline-block';
@@ -758,33 +873,249 @@
     // قاعدة البيانات المحلية الدائمة (IndexedDB)
     function initDB() {
       return new Promise((resolve) => {
-        const request = indexedDB.open('AlzaeemCameraDB', 1);
+        const request = indexedDB.open('AlzaeemCameraDB_v2', 1);
         request.onupgradeneeded = (e) => {
           const database = e.target.result;
           if (!database.objectStoreNames.contains('photos')) {
             database.createObjectStore('photos', { keyPath: 'id', autoIncrement: true });
           }
+          if (!database.objectStoreNames.contains('settings')) {
+            database.createObjectStore('settings', { keyPath: 'key' });
+          }
         };
         request.onsuccess = (e) => {
           db = e.target.result;
           loadPhotosFromDB();
+          loadAssetsFromDB();
           resolve();
         };
         request.onerror = () => resolve();
       });
     }
 
+    function saveAssetsToDB() {
+      if (!db) return;
+      const tx = db.transaction('settings', 'readwrite');
+      tx.objectStore('settings').put({
+        key: 'assetsData',
+        map: assetsMap,
+        showName: watermarkShowName
+      });
+      updateDbBadgeUI();
+    }
+
+    function loadAssetsFromDB() {
+      if (!db) return;
+      const tx = db.transaction('settings', 'readonly');
+      const req = tx.objectStore('settings').get('assetsData');
+      req.onsuccess = () => {
+        if (req.result) {
+          assetsMap = req.result.map || {};
+          watermarkShowName = !!req.result.showName;
+          includeNameInWatermark.checked = watermarkShowName;
+          updateDbBadgeUI();
+        }
+      };
+    }
+
+    function updateDbBadgeUI() {
+      const count = Object.keys(assetsMap).length;
+      loadedAssetsCount.textContent = `الأصول المحملة: ${count}`;
+      if (count > 0) {
+        dbCountLabel.textContent = `الأصول (${count})`;
+        dbSettingsBtn.classList.add('btn-db-loaded');
+      } else {
+        dbCountLabel.textContent = 'الأصول';
+        dbSettingsBtn.classList.remove('btn-db-loaded');
+      }
+    }
+
+    // فتح وإغلاق نافذة قاعدة بيانات الأصول
+    dbSettingsBtn.addEventListener('click', () => {
+      dbModal.style.display = 'flex';
+    });
+    closeDbModalBtn.addEventListener('click', () => {
+      dbModal.style.display = 'none';
+    });
+
+    // قراءة ملف Excel أو CSV
+    excelFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          parsedRawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+          if (parsedRawRows.length === 0) {
+            alert('الملف فارغ أو لا يحتوي على بيانات.');
+            return;
+          }
+
+          const headers = Object.keys(parsedRawRows[0]);
+          populateColumnSelects(headers);
+          columnMappingSection.style.display = 'flex';
+        } catch (err) {
+          alert('تعذر قراءة الملف. تأكد أنه بصيغة Excel (.xlsx) أو CSV.');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    function populateColumnSelects(headers) {
+      [colSeqSelect, colNameSelect, colCodeSelect].forEach(sel => {
+        sel.innerHTML = headers.map(h => `<option value="${h}">${h}</option>`).join('');
+      });
+
+      // تخمين ذكي للأعمدة بناءً على أسمائها العربية أو الإنجليزية
+      headers.forEach(h => {
+        const lower = h.toLowerCase();
+        if (lower.includes('تسلسل') || lower.includes('رقم') || lower.includes('seq') || lower.includes('id')) colSeqSelect.value = h;
+        if (lower.includes('اسم') || lower.includes('بيان') || lower.includes('وصف') || lower.includes('name')) colNameSelect.value = h;
+        if (lower.includes('كود') || lower.includes('رمز') || lower.includes('code') || lower.includes('asset')) colCodeSelect.value = h;
+      });
+    }
+
+    saveDbMappingBtn.addEventListener('click', () => {
+      const seqCol = colSeqSelect.value;
+      const nameCol = colNameSelect.value;
+      const codeCol = colCodeSelect.value;
+
+      const newMap = {};
+      for (const row of parsedRawRows) {
+        const seqVal = String(row[seqCol] ?? '').trim();
+        if (seqVal) {
+          newMap[seqVal] = {
+            name: String(row[nameCol] ?? '').trim(),
+            code: String(row[codeCol] ?? '').trim()
+          };
+        }
+      }
+
+      assetsMap = newMap;
+      watermarkShowName = includeNameInWatermark.checked;
+      saveAssetsToDB();
+      dbModal.style.display = 'none';
+      showToast(`✓ تم حفظ ${Object.keys(assetsMap).length} أصل بنجاح`);
+    });
+
+    clearDbAssetsBtn.addEventListener('click', () => {
+      if (confirm('هل تريد حذف قاعدة بيانات الأصول المحملة؟')) {
+        assetsMap = {};
+        saveAssetsToDB();
+        columnMappingSection.style.display = 'none';
+        excelFileInput.value = '';
+        showToast('تم حذف قاعدة البيانات');
+      }
+    });
+
+    // البحث عن الأصل أثناء كتابة الرقم في نافذة التسمية
+    function lookupAssetByInput(rawText) {
+      const clean = rawText.trim();
+      if (!clean || Object.keys(assetsMap).length === 0) {
+        assetMatchBox.style.display = 'none';
+        return null;
+      }
+
+      // المطابقة المباشرة أو استخراج الرقم الأساسي قبل الشرطة (مثل 15 من 15-2)
+      const baseSeq = clean.split('-')[0].trim();
+      const found = assetsMap[clean] || assetsMap[baseSeq];
+
+      assetMatchBox.style.display = 'block';
+      if (found) {
+        assetMatchBox.classList.remove('not-found');
+        matchedAssetName.textContent = `الأصل: ${found.name || 'بدون اسم'}`;
+        matchedAssetCode.textContent = found.code || 'لا يوجد كود';
+        return found;
+      } else {
+        assetMatchBox.classList.add('not-found');
+        matchedAssetName.textContent = `رقم التسلسل (${baseSeq}) غير مسجل في القاعدة`;
+        matchedAssetCode.textContent = '-';
+        return null;
+      }
+    }
+
+    // رسم العلامة المائية على الصورة بجودة عالية
+    function renderPhotoWithWatermark(sourceCanvas, seqText, assetInfo) {
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width = sourceCanvas.width;
+      outCanvas.height = sourceCanvas.height;
+      const ctx = outCanvas.getContext('2d');
+
+      // رسم الصورة الأصلية
+      ctx.drawImage(sourceCanvas, 0, 0);
+
+      // بناء نص العلامة المائية
+      const parts = [`التسلسل: ${seqText}`];
+      if (assetInfo && assetInfo.code) {
+        parts.push(`كود الأصل: ${assetInfo.code}`);
+      }
+      if (watermarkShowName && assetInfo && assetInfo.name) {
+        parts.push(assetInfo.name);
+      }
+      const watermarkText = parts.join('   |   ');
+
+      // ضبط حجم الخط ليتناسب مع أبعاد الصورة مهما كانت دقتها
+      const baseDimension = Math.min(outCanvas.width, outCanvas.height);
+      const fontSize = Math.max(22, Math.round(baseDimension * 0.032));
+      ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`;
+
+      const paddingX = Math.round(fontSize * 0.8);
+      const paddingY = Math.round(fontSize * 0.5);
+      const textMetrics = ctx.measureText(watermarkText);
+      const boxWidth = Math.min(outCanvas.width - 24, textMetrics.width + paddingX * 2);
+      const boxHeight = fontSize + paddingY * 2;
+
+      const margin = Math.max(16, Math.round(baseDimension * 0.02));
+      const boxX = outCanvas.width - boxWidth - margin; // الزاوية السفلية اليمنى
+      const boxY = outCanvas.height - boxHeight - margin;
+
+      // رسم خلفية داكنة مستديرة الزوايا
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+      ctx.beginPath();
+      ctx.roundRect(boxX, boxY, boxWidth, boxHeight, Math.round(fontSize * 0.35));
+      ctx.fill();
+
+      // إطار خفيف للعلامة
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)';
+      ctx.lineWidth = Math.max(2, Math.round(fontSize * 0.08));
+      ctx.stroke();
+
+      // كتابة النص بلون واضح
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.direction = 'rtl';
+      ctx.fillText(watermarkText, boxX + boxWidth - paddingX, boxY + boxHeight / 2, boxWidth - paddingX * 2);
+
+      return outCanvas;
+    }
+
     function savePhotoToDB(photoObj) {
       if (!db) return;
       const tx = db.transaction('photos', 'readwrite');
-      const req = tx.objectStore('photos').add({ name: photoObj.name, blob: photoObj.blob });
+      const req = tx.objectStore('photos').add({
+        name: photoObj.name,
+        subInfo: photoObj.subInfo || '',
+        blob: photoObj.blob
+      });
       req.onsuccess = (e) => { photoObj.id = e.target.result; };
     }
 
     function updatePhotoInDB(photoObj) {
       if (!db || !photoObj.id) return;
       const tx = db.transaction('photos', 'readwrite');
-      tx.objectStore('photos').put({ id: photoObj.id, name: photoObj.name, blob: photoObj.blob });
+      tx.objectStore('photos').put({
+        id: photoObj.id,
+        name: photoObj.name,
+        subInfo: photoObj.subInfo || '',
+        blob: photoObj.blob
+      });
     }
 
     function deletePhotoFromDB(id) {
@@ -808,6 +1139,7 @@
         sessionPhotos = records.map(r => ({
           id: r.id,
           name: r.name,
+          subInfo: r.subInfo || '',
           blob: r.blob,
           dataUrl: URL.createObjectURL(r.blob)
         }));
@@ -818,7 +1150,7 @@
     function showToast(text) {
       toastMsg.textContent = text;
       toastMsg.classList.add('show');
-      setTimeout(() => toastMsg.classList.remove('show'), 1600);
+      setTimeout(() => toastMsg.classList.remove('show'), 1700);
     }
 
     pickFolderBtn.addEventListener('click', async () => {
@@ -876,8 +1208,10 @@
       if (!photo) return;
       closeDrawer();
       editingIndex = index;
-      modalTitleText.textContent = 'تعديل اسم الصورة:';
-      fileNameInput.value = photo.name.replace(/\.jpg$/i, '');
+      modalTitleText.textContent = 'تعديل رقم/اسم الصورة:';
+      const baseVal = photo.name.replace(/\.jpg$/i, '');
+      fileNameInput.value = baseVal;
+      lookupAssetByInput(baseVal);
       duplicateBox.style.display = 'none';
       renameModal.style.display = 'flex';
       setTimeout(() => { fileNameInput.focus(); fileNameInput.select(); }, 60);
@@ -895,7 +1229,7 @@
       btn.addEventListener('click', () => {
         const suffix = btn.getAttribute('data-suffix');
         fileNameInput.value = fileNameInput.value.trim() + suffix;
-        checkDuplicateName();
+        onInputChanged();
         fileNameInput.focus();
       });
     });
@@ -924,9 +1258,7 @@
 
         if (videoTrack && 'getCapabilities' in videoTrack) {
           const caps = videoTrack.getCapabilities();
-          if (caps.torch) {
-            torchBtn.style.display = 'inline-block';
-          }
+          if (caps.torch) torchBtn.style.display = 'inline-block';
           if (caps.zoom) {
             zoomBar.style.display = 'flex';
             zoomSlider.min = caps.zoom.min || 1;
@@ -964,11 +1296,8 @@
     cameraContainer.addEventListener('click', async (e) => {
       if (e.target.closest('button') || e.target.closest('.zoom-bar')) return;
       const rect = cameraContainer.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      focusRing.style.left = `${x}px`;
-      focusRing.style.top = `${y}px`;
+      focusRing.style.left = `${e.clientX - rect.left}px`;
+      focusRing.style.top = `${e.clientY - rect.top}px`;
       focusRing.classList.add('active');
       setTimeout(() => focusRing.classList.remove('active'), 650);
 
@@ -987,42 +1316,28 @@
       startCamera();
     });
 
-    function triggerCapture() {
+    // التقاط الصورة الخام
+    captureBtn.addEventListener('click', () => {
       if (!video.videoWidth || renameModal.style.display === 'flex') return;
 
-      const qSetting = qualityLevels[currentQualityIdx];
-      let w = video.videoWidth;
-      let h = video.videoHeight;
-
-      if (Math.max(w, h) > qSetting.maxDim) {
-        const ratio = qSetting.maxDim / Math.max(w, h);
-        w = Math.round(w * ratio);
-        h = Math.round(h * ratio);
-      }
-
-      canvas.width = w;
-      canvas.height = h;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
       const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, w, h);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      capturedDataUrl = canvas.toDataURL('image/jpeg', qSetting.q);
-      canvas.toBlob((blob) => {
-        capturedBlob = blob;
-      }, 'image/jpeg', qSetting.q);
-
-      previewImg.src = capturedDataUrl;
+      rawCapturedCanvas = canvas;
+      previewImg.src = canvas.toDataURL('image/jpeg', 0.92);
       previewImg.style.display = 'block';
       video.style.display = 'none';
 
       editingIndex = null;
-      modalTitleText.textContent = 'أدخل رقم أو اسم الصورة:';
+      modalTitleText.textContent = 'أدخل رقم التسلسل للصورة:';
       fileNameInput.value = '';
+      assetMatchBox.style.display = 'none';
       duplicateBox.style.display = 'none';
       renameModal.style.display = 'flex';
       setTimeout(() => fileNameInput.focus(), 60);
-    }
-
-    captureBtn.addEventListener('click', triggerCapture);
+    });
 
     function getNextAvailableName(baseName) {
       let counter = 2;
@@ -1056,7 +1371,12 @@
       }
     }
 
-    fileNameInput.addEventListener('input', checkDuplicateName);
+    function onInputChanged() {
+      lookupAssetByInput(fileNameInput.value);
+      checkDuplicateName();
+    }
+
+    fileNameInput.addEventListener('input', onInputChanged);
 
     saveNextSeqBtn.addEventListener('click', () => {
       const nextFull = saveNextSeqBtn.dataset.nextName;
@@ -1089,9 +1409,15 @@
     });
 
     async function finalizeSave(finalFileName, replaceIndex) {
+      const cleanSeq = finalFileName.replace(/\.jpg$/i, '');
+      const matchedAsset = lookupAssetByInput(cleanSeq);
+      const subInfoText = matchedAsset ? `${matchedAsset.code} - ${matchedAsset.name}` : '';
+
+      // حالة تعديل اسم صورة موجودة
       if (editingIndex !== null) {
         const item = sessionPhotos[editingIndex];
         item.name = finalFileName;
+        item.subInfo = subInfoText;
         updatePhotoInDB(item);
         updateHistoryUI();
         showToast(`✓ تم التعديل إلى: ${finalFileName}`);
@@ -1099,20 +1425,27 @@
         return;
       }
 
-      if (!capturedBlob) return;
+      if (!rawCapturedCanvas) return;
+
+      // دمج العلامة المائية في زاوية الصورة
+      const stampedCanvas = renderPhotoWithWatermark(rawCapturedCanvas, cleanSeq, matchedAsset);
+      const stampedDataUrl = stampedCanvas.toDataURL('image/jpeg', 0.92);
+      const stampedBlob = await new Promise(res => stampedCanvas.toBlob(res, 'image/jpeg', 0.92));
 
       if (replaceIndex !== -1) {
         const oldItem = sessionPhotos[replaceIndex];
         URL.revokeObjectURL(oldItem.dataUrl);
         oldItem.name = finalFileName;
-        oldItem.blob = capturedBlob;
-        oldItem.dataUrl = capturedDataUrl;
+        oldItem.subInfo = subInfoText;
+        oldItem.blob = stampedBlob;
+        oldItem.dataUrl = stampedDataUrl;
         updatePhotoInDB(oldItem);
       } else {
         const photoObj = {
           name: finalFileName,
-          blob: capturedBlob,
-          dataUrl: capturedDataUrl
+          subInfo: subInfoText,
+          blob: stampedBlob,
+          dataUrl: stampedDataUrl
         };
         sessionPhotos.push(photoObj);
         savePhotoToDB(photoObj);
@@ -1124,14 +1457,14 @@
         try {
           const fileHandle = await directoryHandle.getFileHandle(finalFileName, { create: true });
           const writable = await fileHandle.createWritable();
-          await writable.write(capturedBlob);
+          await writable.write(stampedBlob);
           await writable.close();
-          showToast(`✓ حُفظت في المجلد: ${finalFileName}`);
+          showToast(`✓ حُفظت بالعلامة: ${finalFileName}`);
         } catch (err) {
           showToast(`✓ حُفظت: ${finalFileName}`);
         }
       } else {
-        showToast(`✓ حُفظت: ${finalFileName}`);
+        showToast(`✓ حُفظت بالعلامة: ${finalFileName}`);
       }
 
       resetToCamera();
@@ -1163,7 +1496,7 @@
         const dateStr = new Date().toISOString().slice(0, 10);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `Alzaeem_Photos_${dateStr}.zip`;
+        link.download = `Alzaeem_Assets_${dateStr}.zip`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -1220,7 +1553,10 @@
           <div class="drawer-photo-card">
             <div class="drawer-card-left" onclick="openPhotoViewer(${item.originalIndex})">
               <img class="drawer-thumb" src="${item.dataUrl}" alt="${item.name}">
-              <span class="drawer-photo-name">${item.name}</span>
+              <div class="drawer-photo-info">
+                <span class="drawer-photo-name">${item.name}</span>
+                ${item.subInfo ? `<span class="drawer-photo-sub">${item.subInfo}</span>` : ''}
+              </div>
             </div>
             <div class="drawer-card-actions">
               <button class="drawer-icon-btn" onclick="editExistingPhotoName(${item.originalIndex})" title="تعديل الاسم">✏️</button>
@@ -1234,11 +1570,11 @@
     discardBtn.addEventListener('click', resetToCamera);
 
     function resetToCamera() {
-      capturedBlob = null;
-      capturedDataUrl = null;
+      rawCapturedCanvas = null;
       editingIndex = null;
       duplicateBox.style.display = 'none';
       duplicateBox.dataset.warned = '';
+      assetMatchBox.style.display = 'none';
       renameModal.style.display = 'none';
       previewImg.style.display = 'none';
       video.style.display = 'block';
