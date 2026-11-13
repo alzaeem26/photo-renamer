@@ -1,4 +1,4 @@
-const CACHE_NAME = 'alzaeem-cam-v2';
+const CACHE_NAME = 'alzaeem-cam-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -23,8 +23,15 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// جلب النسخة الأحدث من الشبكة أولاً، والرجوع للكاش فقط عند انقطاع الإنترنت
 self.addEventListener('fetch', (event) => {
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    fetch(event.request)
+      .then((response) => {
+        const resClone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
