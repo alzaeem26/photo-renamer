@@ -514,11 +514,27 @@
     .asset-title { color: #ecfdf5; font-weight: bold; font-size: 13px; }
     .asset-code { color: #34d399; font-weight: bold; direction: ltr; display: inline-block; }
 
-    /* أزرار اللواحق السريعة */
+    /* تنبيه تكرار الاسم + صف اللواحق السريعة */
+    .duplicate-box {
+      display: none;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid #f59e0b;
+      border-radius: 10px;
+      padding: 9px;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .duplicate-msg {
+      color: #fbbf24;
+      font-size: 12px;
+      font-weight: bold;
+      text-align: center;
+    }
     .quick-suffixes {
       display: flex;
       gap: 6px;
       justify-content: center;
+      flex-wrap: wrap;
     }
     .suffix-chip {
       background: #0f172a;
@@ -531,22 +547,9 @@
       cursor: pointer;
       direction: ltr;
     }
-
-    /* تنبيه تكرار الاسم */
-    .duplicate-box {
-      display: none;
-      background: rgba(245, 158, 11, 0.15);
-      border: 1px solid #f59e0b;
-      border-radius: 10px;
-      padding: 8px;
-      flex-direction: column;
-      gap: 7px;
-    }
-    .duplicate-msg {
-      color: #fbbf24;
-      font-size: 12px;
-      font-weight: bold;
-      text-align: center;
+    .suffix-chip:active {
+      background: #2563eb;
+      color: #fff;
     }
     .duplicate-actions {
       display: flex;
@@ -703,24 +706,24 @@
 
       <input type="search" id="fileNameInput" inputmode="numeric" enterkeyhint="done" placeholder="10" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" required>
 
-      <!-- نتيجة المطابقة الفورية مع قاعدة بيانات الأصول (تظهر فقط عند تحميل ملف Excel) -->
+      <!-- نتيجة المطابقة الفورية مع قاعدة بيانات الأصول -->
       <div class="asset-match-box" id="assetMatchBox">
         <div class="asset-title" id="matchedAssetName">اسم الأصل: -</div>
         <div>كود الأصل: <span class="asset-code" id="matchedAssetCode">-</span></div>
       </div>
 
-      <!-- أزرار اللواحق السريعة -->
-      <div class="quick-suffixes">
-        <button type="button" class="suffix-chip" data-suffix="-1">-1</button>
-        <button type="button" class="suffix-chip" data-suffix="-2">-2</button>
-        <button type="button" class="suffix-chip" data-suffix="-3">-3</button>
-        <button type="button" class="suffix-chip" data-suffix="-أمام">أمام</button>
-        <button type="button" class="suffix-chip" data-suffix="-خلف">خلف</button>
-      </div>
-
-      <!-- تنبيه التكرار -->
+      <!-- تنبيه التكرار (يظهر فقط عند وجود اسم مكرر ويضم صف اللواحق السريعة) -->
       <div class="duplicate-box" id="duplicateBox">
         <div class="duplicate-msg" id="duplicateMsgText">⚠️ الاسم موجود مسبقاً!</div>
+        
+        <div class="quick-suffixes">
+          <button type="button" class="suffix-chip" data-suffix="-1">-1</button>
+          <button type="button" class="suffix-chip" data-suffix="-2">-2</button>
+          <button type="button" class="suffix-chip" data-suffix="-3">-3</button>
+          <button type="button" class="suffix-chip" data-suffix="-أمام">أمام</button>
+          <button type="button" class="suffix-chip" data-suffix="-خلف">خلف</button>
+        </div>
+
         <div class="duplicate-actions">
           <button type="button" class="btn-dup-auto" id="saveNextSeqBtn">حفظ باسم 10-2</button>
           <button type="button" class="btn-dup-replace" id="replaceOldBtn">استبدال القديمة</button>
@@ -1018,6 +1021,7 @@
       const clean = rawText.trim();
       if (!clean || !hasLoadedAssets()) {
         assetMatchBox.style.display = 'none';
+        submitSaveBtn.textContent = 'حفظ';
         return null;
       }
 
@@ -1029,11 +1033,13 @@
         assetMatchBox.classList.remove('not-found');
         matchedAssetName.textContent = `الأصل: ${found.name || 'بدون اسم'}`;
         matchedAssetCode.textContent = found.code || 'لا يوجد كود';
+        submitSaveBtn.textContent = 'حفظ وطباعة العلامة';
         return found;
       } else {
         assetMatchBox.classList.add('not-found');
         matchedAssetName.textContent = `رقم التسلسل (${baseSeq}) غير مسجل في القاعدة`;
         matchedAssetCode.textContent = '-';
+        submitSaveBtn.textContent = 'حفظ';
         return null;
       }
     }
@@ -1045,10 +1051,8 @@
       outCanvas.height = sourceCanvas.height;
       const ctx = outCanvas.getContext('2d');
 
-      // رسم الصورة الأصلية النظيفة
       ctx.drawImage(sourceCanvas, 0, 0);
 
-      // إذا لم يتم تحميل ملف Excel أو لم يوجد تطابق، نعيد الصورة كما هي بدون أي علامة مائية
       if (!hasLoadedAssets() || !assetInfo) {
         return outCanvas;
       }
@@ -1223,10 +1227,13 @@
       setTimeout(() => fileNameInput.focus(), 50);
     });
 
+    // أزرار اللواحق السريعة (تعمل عند وجود تكرار)
     document.querySelectorAll('.suffix-chip').forEach(btn => {
       btn.addEventListener('click', () => {
         const suffix = btn.getAttribute('data-suffix');
-        fileNameInput.value = fileNameInput.value.trim() + suffix;
+        // إزالة أي لاحقة سابقة إن وجدت ثم إضافة اللاحقة الجديدة
+        const baseClean = fileNameInput.value.trim().split('-')[0];
+        fileNameInput.value = baseClean + suffix;
         onInputChanged();
         fileNameInput.focus();
       });
@@ -1329,7 +1336,7 @@
 
       editingIndex = null;
       modalTitleText.textContent = hasLoadedAssets() ? 'أدخل رقم التسلسل للصورة:' : 'أدخل رقم أو اسم الصورة:';
-      submitSaveBtn.textContent = hasLoadedAssets() ? 'حفظ وطباعة العلامة' : 'حفظ';
+      submitSaveBtn.textContent = 'حفظ';
       fileNameInput.value = '';
       assetMatchBox.style.display = 'none';
       duplicateBox.style.display = 'none';
@@ -1381,11 +1388,16 @@
       if (nextFull) finalizeSave(nextFull, -1);
     });
 
+    // تنبيه تأكيد قبل حذف الصورة القديمة واستبدالها
     replaceOldBtn.addEventListener('click', () => {
       const raw = fileNameInput.value.trim().replace(/[\\/:*?"<>|]/g, '-');
       const targetName = `${raw}.jpg`;
       const existingIdx = sessionPhotos.findIndex((p, idx) => idx !== editingIndex && p.name.toLowerCase() === targetName.toLowerCase());
-      finalizeSave(targetName, existingIdx);
+      if (existingIdx === -1) return;
+
+      if (confirm(`تنبيه: سيتم حذف الصورة القديمة (${targetName}) نهائياً واستبدالها بالصورة الجديدة، هل تريد المتابعة؟`)) {
+        finalizeSave(targetName, existingIdx);
+      }
     });
 
     renameForm.addEventListener('submit', (e) => {
@@ -1424,7 +1436,6 @@
 
       if (!rawCapturedCanvas) return;
 
-      // تطبع العلامة المائية فقط إذا كان هناك ملف محمّل ومطابقة للرقم، وإلا تُحفظ الصورة نظيفة
       const finalCanvas = renderPhotoWithWatermark(rawCapturedCanvas, cleanSeq, matchedAsset);
       const finalDataUrl = finalCanvas.toDataURL('image/jpeg', 0.92);
       const finalBlob = await new Promise(res => finalCanvas.toBlob(res, 'image/jpeg', 0.92));
@@ -1493,7 +1504,7 @@
         const dateStr = new Date().toISOString().slice(0, 10);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `Alzaeem_Photos_${dateStr}.zip`;
+        link.download = `Alzaeem_Assets_${dateStr}.zip`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
