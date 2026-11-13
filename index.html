@@ -45,14 +45,14 @@
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 5px;
       flex-shrink: 0;
     }
     .btn-header {
       background: #334155;
       color: #e2e8f0;
       border: 1px solid #475569;
-      padding: 5px 7px;
+      padding: 5px 8px;
       border-radius: 7px;
       font-size: 11px;
       cursor: pointer;
@@ -69,12 +69,6 @@
     .btn-zip {
       background: #2563eb;
       border-color: #3b82f6;
-      color: #fff;
-      font-weight: bold;
-    }
-    .btn-share {
-      background: #059669;
-      border-color: #10b981;
       color: #fff;
       font-weight: bold;
     }
@@ -119,7 +113,7 @@
       transform: translate(-50%, -50%) scale(1);
     }
 
-    /* أزرار الكاميرا العائمة (فلاش + تقريب) */
+    /* أزرار الكاميرا العائمة */
     .cam-overlay-tools {
       position: absolute;
       top: 12px;
@@ -579,7 +573,6 @@
     <div class="header-actions">
       <button class="btn-header" id="qualityBtn" title="تغيير دقة وحجم الصور">عالية</button>
       <button class="btn-header" id="pickFolderBtn" title="تحديد مجلد للحفظ المباشر">📁 <span id="folderLabel">مجلد</span></button>
-      <button class="btn-header btn-share" id="shareZipBtn" disabled title="مشاركة عبر واتساب أو تيليغرام">📤</button>
       <button class="btn-header btn-zip" id="exportZipBtn" disabled>📦 ZIP (<span id="zipCount">0</span>)</button>
     </div>
   </header>
@@ -681,7 +674,6 @@
   </div>
 
   <script>
-    // تسجيل Service Worker للعمل بدون إنترنت (PWA)
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').catch(() => {});
     }
@@ -696,7 +688,6 @@
     const pickFolderBtn = document.getElementById('pickFolderBtn');
     const folderLabel = document.getElementById('folderLabel');
     const qualityBtn = document.getElementById('qualityBtn');
-    const shareZipBtn = document.getElementById('shareZipBtn');
     const exportZipBtn = document.getElementById('exportZipBtn');
     const toastMsg = document.getElementById('toastMsg');
 
@@ -741,7 +732,7 @@
     let sessionPhotos = [];
     let isNumericMode = true;
     let db = null;
-    let editingIndex = null; // لتتبع تعديل اسم صورة موجودة
+    let editingIndex = null;
 
     // إعدادات الجودة
     const qualityLevels = [
@@ -757,7 +748,6 @@
       showToast(`الدقة: ${qualityLevels[currentQualityIdx].label}`);
     });
 
-    // مراقبة حالة الاتصال بالإنترنت
     function updateOnlineStatus() {
       offlineBadge.style.display = navigator.onLine ? 'none' : 'inline-block';
     }
@@ -831,10 +821,9 @@
       setTimeout(() => toastMsg.classList.remove('show'), 1600);
     }
 
-    // اختيار مجلد للحفظ المباشر
     pickFolderBtn.addEventListener('click', async () => {
       if (!('showDirectoryPicker' in window)) {
-        alert('هذا المتصفح لا يدعم ربط مجلد مباشر. يتم حفظ الصور تلقائياً بصمت داخل التطبيق ويمكنك تنزيلها أو مشاركتها كملف ZIP.');
+        alert('هذا المتصفح لا يدعم ربط مجلد مباشر. يتم حفظ الصور تلقائياً بصمت داخل التطبيق ويمكنك تنزيلها كلها كملف ZIP.');
         return;
       }
       try {
@@ -847,7 +836,6 @@
       }
     });
 
-    // القائمة الجانبية والمعاينة
     function openDrawer() {
       drawerOverlay.style.display = 'block';
       requestAnimationFrame(() => sideDrawer.classList.add('open'));
@@ -883,7 +871,6 @@
       }
     }
 
-    // فتح نافذة تعديل اسم صورة محفوظة سابقاً
     function editExistingPhotoName(index) {
       const photo = sessionPhotos[index];
       if (!photo) return;
@@ -904,7 +891,6 @@
       setTimeout(() => fileNameInput.focus(), 50);
     });
 
-    // أزرار اللواحق السريعة (-1, -2, أمام, خلف)
     document.querySelectorAll('.suffix-chip').forEach(btn => {
       btn.addEventListener('click', () => {
         const suffix = btn.getAttribute('data-suffix');
@@ -914,7 +900,6 @@
       });
     });
 
-    // تشغيل الكاميرا وتفعيل الفلاش والتقريب
     async function startCamera() {
       if (currentStream) {
         currentStream.getTracks().forEach(track => track.stop());
@@ -937,7 +922,6 @@
         video.srcObject = currentStream;
         videoTrack = currentStream.getVideoTracks()[0];
 
-        // فحص دعم الفلاش والتقريب في العدسة
         if (videoTrack && 'getCapabilities' in videoTrack) {
           const caps = videoTrack.getCapabilities();
           if (caps.torch) {
@@ -957,7 +941,6 @@
       }
     }
 
-    // زر الفلاش
     torchBtn.addEventListener('click', async () => {
       if (!videoTrack) return;
       try {
@@ -969,7 +952,6 @@
       }
     });
 
-    // شريط التقريب Zoom
     zoomSlider.addEventListener('input', async () => {
       if (!videoTrack) return;
       const val = Number(zoomSlider.value);
@@ -979,7 +961,6 @@
       } catch (e) {}
     });
 
-    // التركيز باللمس على الشاشة
     cameraContainer.addEventListener('click', async (e) => {
       if (e.target.closest('button') || e.target.closest('.zoom-bar')) return;
       const rect = cameraContainer.getBoundingClientRect();
@@ -1006,7 +987,6 @@
       startCamera();
     });
 
-    // التقاط الصورة
     function triggerCapture() {
       if (!video.videoWidth || renameModal.style.display === 'flex') return;
 
@@ -1044,17 +1024,6 @@
 
     captureBtn.addEventListener('click', triggerCapture);
 
-    // دعم التصوير بأزرار رفع/خفض الصوت في الهاتف
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'AudioVolumeUp' || e.key === 'AudioVolumeDown') {
-        if (renameModal.style.display !== 'flex' && photoViewerModal.style.display !== 'flex') {
-          e.preventDefault();
-          triggerCapture();
-        }
-      }
-    });
-
-    // فحص تكرار الاسم أثناء الكتابة
     function getNextAvailableName(baseName) {
       let counter = 2;
       let candidate = `${baseName}-${counter}.jpg`;
@@ -1089,15 +1058,11 @@
 
     fileNameInput.addEventListener('input', checkDuplicateName);
 
-    // زر الحفظ برقم تسلسلي تلقائي عند التكرار
     saveNextSeqBtn.addEventListener('click', () => {
       const nextFull = saveNextSeqBtn.dataset.nextName;
-      if (nextFull) {
-        finalizeSave(nextFull, -1);
-      }
+      if (nextFull) finalizeSave(nextFull, -1);
     });
 
-    // زر استبدال الصورة القديمة عند التكرار
     replaceOldBtn.addEventListener('click', () => {
       const raw = fileNameInput.value.trim().replace(/[\\/:*?"<>|]/g, '-');
       const targetName = `${raw}.jpg`;
@@ -1105,7 +1070,6 @@
       finalizeSave(targetName, existingIdx);
     });
 
-    // حفظ النموذج الأساسي
     renameForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const rawName = fileNameInput.value.trim();
@@ -1114,7 +1078,6 @@
       const safeName = rawName.replace(/[\\/:*?"<>|]/g, '-');
       const finalFileName = `${safeName}.jpg`;
 
-      // إذا كان الاسم مكرراً ولم يضغط المستخدم على خيارات التكرار بعد، نظهر التنبيه أولاً
       const dupIdx = checkDuplicateName();
       if (dupIdx !== -1 && duplicateBox.dataset.warned !== finalFileName) {
         duplicateBox.dataset.warned = finalFileName;
@@ -1126,7 +1089,6 @@
     });
 
     async function finalizeSave(finalFileName, replaceIndex) {
-      // حالة 1: تعديل اسم صورة موجودة مسبقاً
       if (editingIndex !== null) {
         const item = sessionPhotos[editingIndex];
         item.name = finalFileName;
@@ -1139,7 +1101,6 @@
 
       if (!capturedBlob) return;
 
-      // حالة 2: استبدال صورة قديمة بنفس الاسم
       if (replaceIndex !== -1) {
         const oldItem = sessionPhotos[replaceIndex];
         URL.revokeObjectURL(oldItem.dataUrl);
@@ -1148,7 +1109,6 @@
         oldItem.dataUrl = capturedDataUrl;
         updatePhotoInDB(oldItem);
       } else {
-        // حالة 3: حفظ صورة جديدة
         const photoObj = {
           name: finalFileName,
           blob: capturedBlob,
@@ -1160,7 +1120,6 @@
 
       updateHistoryUI();
 
-      // الحفظ المباشر في المجلد إن كان محدداً
       if (directoryHandle) {
         try {
           const fileHandle = await directoryHandle.getFileHandle(finalFileName, { create: true });
@@ -1178,40 +1137,33 @@
       resetToCamera();
     }
 
-    // بناء ملف ZIP (مشترك بين التنزيل والمشاركة)
-    async function buildZipFile() {
-      const zip = new JSZip();
-      const usedNames = {};
-
-      for (const item of sessionPhotos) {
-        let fileName = item.name;
-        if (usedNames[fileName]) {
-          usedNames[fileName]++;
-          const base = fileName.replace(/\.jpg$/i, '');
-          fileName = `${base}_${usedNames[item.name]}.jpg`;
-        } else {
-          usedNames[fileName] = 1;
-        }
-        zip.file(fileName, item.blob);
-      }
-
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const dateStr = new Date().toISOString().slice(0, 10);
-      return { blob: zipBlob, fileName: `Alzaeem_Photos_${dateStr}.zip` };
-    }
-
-    // تنزيل ZIP
     exportZipBtn.addEventListener('click', async () => {
       if (sessionPhotos.length === 0) return;
       exportZipBtn.disabled = true;
       exportZipBtn.textContent = 'جاري الضغط...';
 
       try {
-        const { blob, fileName } = await buildZipFile();
-        const url = URL.createObjectURL(blob);
+        const zip = new JSZip();
+        const usedNames = {};
+
+        for (const item of sessionPhotos) {
+          let fileName = item.name;
+          if (usedNames[fileName]) {
+            usedNames[fileName]++;
+            const base = fileName.replace(/\.jpg$/i, '');
+            fileName = `${base}_${usedNames[item.name]}.jpg`;
+          } else {
+            usedNames[fileName] = 1;
+          }
+          zip.file(fileName, item.blob);
+        }
+
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(zipBlob);
+        const dateStr = new Date().toISOString().slice(0, 10);
         const link = document.createElement('a');
         link.href = url;
-        link.download = fileName;
+        link.download = `Alzaeem_Photos_${dateStr}.zip`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -1222,31 +1174,6 @@
       } finally {
         exportZipBtn.disabled = false;
         exportZipBtn.innerHTML = `📦 ZIP (<span id="zipCount">${sessionPhotos.length}</span>)`;
-      }
-    });
-
-    // مشاركة ZIP مباشرة عبر واتساب / تيليغرام
-    shareZipBtn.addEventListener('click', async () => {
-      if (sessionPhotos.length === 0) return;
-      shareZipBtn.disabled = true;
-
-      try {
-        const { blob, fileName } = await buildZipFile();
-        const file = new File([blob], fileName, { type: 'application/zip' });
-
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: 'صور كاميرا الزعيم',
-            text: `مرفق ${sessionPhotos.length} صورة مرقمة`
-          });
-        } else {
-          alert('متصفحك لا يدعم المشاركة المباشرة للملفات المضغوطة. استخدم زر ZIP لتنزيل الملف ثم أرسله.');
-        }
-      } catch (err) {
-        if (err.name !== 'AbortError') showToast('تعذرت المشاركة');
-      } finally {
-        shareZipBtn.disabled = sessionPhotos.length === 0;
       }
     });
 
@@ -1268,7 +1195,6 @@
       if (zipSpan) zipSpan.textContent = count;
       drawerTotalCount.textContent = count;
       exportZipBtn.disabled = count === 0;
-      shareZipBtn.disabled = count === 0;
 
       if (count === 0) {
         historyList.innerHTML = '<span style="color:#64748b;">لا يوجد بعد</span>';
