@@ -13,7 +13,20 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+    :root {
+      --ios-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Arabic", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: var(--ios-font);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      -webkit-tap-highlight-color: transparent;
+    }
+
     body {
       background-color: #060b14;
       color: #f8fafc;
@@ -60,8 +73,9 @@
       z-index: 20;
     }
     .app-title {
-      font-weight: bold;
+      font-weight: 600;
       font-size: 13px;
+      letter-spacing: -0.01em;
       color: #f8fafc;
       text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
       white-space: nowrap;
@@ -83,6 +97,7 @@
       padding: 5px 7px;
       border-radius: 8px;
       font-size: 11px;
+      font-weight: 500;
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -109,7 +124,7 @@
       background: rgba(56, 189, 248, 0.26);
       border-color: rgba(125, 211, 252, 0.6);
       color: #fff;
-      font-weight: bold;
+      font-weight: 600;
       box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
     }
     .btn-header:disabled {
@@ -160,13 +175,14 @@
       padding: 6px 11px;
       border-radius: 99px;
       font-size: 12px;
+      font-weight: 500;
       cursor: pointer;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
     }
     .floating-tool-btn.torch-on {
       background: rgba(250, 204, 21, 0.85);
       color: #0f172a;
-      font-weight: bold;
+      font-weight: 600;
       border-color: #fef08a;
       box-shadow: 0 0 15px rgba(250, 204, 21, 0.5);
     }
@@ -195,7 +211,7 @@
     }
     .zoom-label {
       font-size: 11px;
-      font-weight: bold;
+      font-weight: 600;
       color: #7dd3fc;
       min-width: 30px;
       text-align: center;
@@ -216,7 +232,7 @@
       padding: 7px 16px;
       border-radius: 99px;
       font-size: 13px;
-      font-weight: bold;
+      font-weight: 600;
       opacity: 0;
       transition: opacity 0.2s;
       pointer-events: none;
@@ -226,7 +242,7 @@
     }
     .toast.show { opacity: 1; }
 
-    /* الحاوية السفلية العائمة (شريط آخر 5 + أزرار التحكم) */
+    /* الحاوية السفلية العائمة */
     .bottom-dock {
       position: fixed;
       bottom: 0;
@@ -322,6 +338,7 @@
       padding: 10px 12px;
       border-radius: 10px;
       font-size: 12px;
+      font-weight: 500;
       cursor: pointer;
       min-width: 85px;
     }
@@ -365,7 +382,7 @@
       justify-content: space-between;
       align-items: center;
       font-size: 14px;
-      font-weight: bold;
+      font-weight: 600;
     }
     .drawer-close {
       background: rgba(255, 255, 255, 0.12);
@@ -419,7 +436,7 @@
     }
     .drawer-photo-name {
       font-size: 13px;
-      font-weight: bold;
+      font-weight: 600;
       color: #7dd3fc;
       direction: ltr;
       text-align: right;
@@ -473,7 +490,7 @@
     }
     .viewer-title {
       font-size: 16px;
-      font-weight: bold;
+      font-weight: 600;
       color: #7dd3fc;
       direction: ltr;
     }
@@ -484,7 +501,7 @@
       padding: 8px 16px;
       border-radius: 9px;
       font-size: 13px;
-      font-weight: bold;
+      font-weight: 600;
       cursor: pointer;
     }
     .viewer-body {
@@ -536,7 +553,7 @@
       justify-content: space-between;
       align-items: center;
     }
-    .modal-header h3 { font-size: 14px; color: #f1f5f9; }
+    .modal-header h3 { font-size: 14px; font-weight: 600; color: #f1f5f9; }
     .kb-toggle {
       background: rgba(255, 255, 255, 0.12);
       color: #bae6fd;
@@ -544,13 +561,14 @@
       padding: 4px 10px;
       border-radius: 7px;
       font-size: 11px;
+      font-weight: 500;
       cursor: pointer;
     }
     input[type="search"], input[type="text"], select {
       width: 100%;
       padding: 10px;
       font-size: 22px;
-      font-weight: bold;
+      font-weight: 700;
       border-radius: 12px;
       border: 1.5px solid rgba(125, 211, 252, 0.65);
       background: rgba(255, 255, 255, 0.08);
@@ -568,6 +586,7 @@
     }
     select {
       font-size: 14px;
+      font-weight: 500;
       direction: rtl;
       text-align: right;
       border-width: 1px;
@@ -592,8 +611,8 @@
       border-color: rgba(255, 255, 255, 0.2);
       color: #cbd5e1;
     }
-    .asset-title { color: #ecfdf5; font-weight: bold; font-size: 13px; }
-    .asset-code { color: #6ee7b7; font-weight: bold; direction: ltr; display: inline-block; }
+    .asset-title { color: #ecfdf5; font-weight: 600; font-size: 13px; }
+    .asset-code { color: #6ee7b7; font-weight: 600; direction: ltr; display: inline-block; }
 
     /* تنبيه تكرار الاسم + صف اللواحق السريعة */
     .duplicate-box {
@@ -608,7 +627,7 @@
     .duplicate-msg {
       color: #fde68a;
       font-size: 12px;
-      font-weight: bold;
+      font-weight: 600;
       text-align: center;
     }
     .quick-suffixes {
@@ -624,7 +643,7 @@
       padding: 5px 10px;
       border-radius: 8px;
       font-size: 12px;
-      font-weight: bold;
+      font-weight: 600;
       cursor: pointer;
       direction: ltr;
     }
@@ -644,7 +663,7 @@
       padding: 8px;
       border-radius: 8px;
       font-size: 12px;
-      font-weight: bold;
+      font-weight: 600;
       cursor: pointer;
     }
     .btn-dup-replace {
@@ -655,7 +674,7 @@
       padding: 8px;
       border-radius: 8px;
       font-size: 12px;
-      font-weight: bold;
+      font-weight: 600;
       cursor: pointer;
     }
 
@@ -671,7 +690,7 @@
       color: #fff;
       border-radius: 11px;
       font-size: 15px;
-      font-weight: bold;
+      font-weight: 600;
       cursor: pointer;
       box-shadow: 0 4px 15px rgba(16, 185, 129, 0.25);
     }
@@ -686,6 +705,7 @@
       color: #fff;
       border-radius: 11px;
       font-size: 14px;
+      font-weight: 500;
       cursor: pointer;
     }
     .btn-cancel:active {
@@ -721,6 +741,7 @@
     <span class="app-title">كاميرا الزعيم</span>
 
     <div class="header-actions">
+      <button class="btn-header" id="qualityBtn" title="تغيير دقة الكاميرا">قصوى</button>
       <button class="btn-header" id="dbSettingsBtn" title="استيراد قاعدة بيانات الأصول (اختياري)">📊 <span id="dbCountLabel">الأصول</span></button>
       <button class="btn-header" id="pickFolderBtn" title="تحديد مجلد للحفظ المباشر">📁 <span id="folderLabel">مجلد</span></button>
       <button class="btn-header btn-zip" id="exportZipBtn" disabled>📦 ZIP (<span id="zipCount">0</span>)</button>
@@ -882,6 +903,7 @@
     const captureBtn = document.getElementById('captureBtn');
     const switchCamBtn = document.getElementById('switchCamBtn');
     const clearSessionBtn = document.getElementById('clearSessionBtn');
+    const qualityBtn = document.getElementById('qualityBtn');
     const pickFolderBtn = document.getElementById('pickFolderBtn');
     const folderLabel = document.getElementById('folderLabel');
     const exportZipBtn = document.getElementById('exportZipBtn');
@@ -951,6 +973,22 @@
     let assetsMap = {};
     let parsedRawRows = [];
     let watermarkShowName = false;
+
+    // مستويات دقة وجودة الكاميرا (من أقصى دقة يدعمها الجهاز حتى المتوسطة)
+    const qualityLevels = [
+      { label: 'قصوى', reqW: 4096, reqH: 3072, maxDim: 0, q: 0.98 },
+      { label: 'عالية', reqW: 1920, reqH: 1080, maxDim: 1920, q: 0.90 },
+      { label: 'متوسطة', reqW: 1280, reqH: 720, maxDim: 1280, q: 0.80 }
+    ];
+    let currentQualityIdx = 0;
+
+    qualityBtn.addEventListener('click', () => {
+      currentQualityIdx = (currentQualityIdx + 1) % qualityLevels.length;
+      const selected = qualityLevels[currentQualityIdx];
+      qualityBtn.textContent = selected.label;
+      showToast(`دقة الكاميرا: ${selected.label}`);
+      startCamera();
+    });
 
     function hasLoadedAssets() {
       return Object.keys(assetsMap).length > 0;
@@ -1155,7 +1193,7 @@
 
       const baseDimension = Math.min(outCanvas.width, outCanvas.height);
       const fontSize = Math.max(22, Math.round(baseDimension * 0.032));
-      ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`;
+      ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Arabic", sans-serif`;
 
       const paddingX = Math.round(fontSize * 0.8);
       const paddingY = Math.round(fontSize * 0.5);
@@ -1363,12 +1401,14 @@
       torchBtn.style.display = 'none';
       zoomBar.style.display = 'none';
 
+      const qSetting = qualityLevels[currentQualityIdx];
+
       try {
         const constraints = {
           video: {
             facingMode: useBackCamera ? { ideal: 'environment' } : 'user',
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
+            width: { ideal: qSetting.reqW },
+            height: { ideal: qSetting.reqH }
           },
           audio: false
         };
@@ -1378,6 +1418,15 @@
 
         if (videoTrack && 'getCapabilities' in videoTrack) {
           const caps = videoTrack.getCapabilities();
+          // طلب أعلى دقة حقيقية يدعمها مستشعر الكاميرا في وضع (قصوى)
+          if (currentQualityIdx === 0 && caps.width && caps.height) {
+            try {
+              await videoTrack.applyConstraints({
+                width: { ideal: caps.width.max },
+                height: { ideal: caps.height.max }
+              });
+            } catch (e) {}
+          }
           if (caps.torch) torchBtn.style.display = 'inline-block';
           if (caps.zoom) {
             zoomBar.style.display = 'flex';
@@ -1438,13 +1487,23 @@
     captureBtn.addEventListener('click', () => {
       if (!video.videoWidth || renameModal.style.display === 'flex') return;
 
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      const qSetting = qualityLevels[currentQualityIdx];
+      let w = video.videoWidth;
+      let h = video.videoHeight;
+
+      if (qSetting.maxDim > 0 && Math.max(w, h) > qSetting.maxDim) {
+        const ratio = qSetting.maxDim / Math.max(w, h);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+      }
+
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, w, h);
 
       rawCapturedCanvas = canvas;
-      previewImg.src = canvas.toDataURL('image/jpeg', 0.92);
+      previewImg.src = canvas.toDataURL('image/jpeg', qSetting.q);
       previewImg.style.display = 'block';
       video.style.display = 'none';
 
@@ -1535,6 +1594,7 @@
       const cleanSeq = finalFileName.replace(/\.jpg$/i, '');
       const matchedAsset = lookupAssetByInput(cleanSeq);
       const subInfoText = matchedAsset ? `${matchedAsset.code} - ${matchedAsset.name}` : '';
+      const qSetting = qualityLevels[currentQualityIdx];
 
       if (editingIndex !== null) {
         const item = sessionPhotos[editingIndex];
@@ -1550,8 +1610,8 @@
       if (!rawCapturedCanvas) return;
 
       const finalCanvas = renderPhotoWithWatermark(rawCapturedCanvas, cleanSeq, matchedAsset);
-      const finalDataUrl = finalCanvas.toDataURL('image/jpeg', 0.92);
-      const finalBlob = await new Promise(res => finalCanvas.toBlob(res, 'image/jpeg', 0.92));
+      const finalDataUrl = finalCanvas.toDataURL('image/jpeg', qSetting.q);
+      const finalBlob = await new Promise(res => finalCanvas.toBlob(res, 'image/jpeg', qSetting.q));
 
       if (replaceIndex !== -1) {
         const oldItem = sessionPhotos[replaceIndex];
@@ -1591,7 +1651,7 @@
       resetToCamera();
     }
 
-    // ضغط جميع الصور المحفوظة (أرقام أو نصوص أو رموز) باستخدام ArrayBuffer لضمان عدم سقوط أي صورة
+    // ضغط جميع الصور: الأرقام الإنجليزية الصرفة في الجذر، وأي اسم يحتوي غير الأرقام الإنجليزية داخل مجلد فرعي
     exportZipBtn.addEventListener('click', async () => {
       if (sessionPhotos.length === 0) return;
       exportZipBtn.disabled = true;
@@ -1599,14 +1659,14 @@
 
       try {
         const zip = new JSZip();
-        const usedNames = new Set();
+        const usedPaths = new Set();
         let addedCount = 0;
+        let customFolderCount = 0;
 
         for (let i = 0; i < sessionPhotos.length; i++) {
           const item = sessionPhotos[i];
           if (!item || !item.blob) continue;
 
-          // تنظيف اسم الملف وضمان وجود امتداد .jpg وعدم تكرار الاسم داخل الأرشيف
           let baseName = String(item.name || `photo_${i + 1}`)
             .replace(/\.jpg$/i, '')
             .replace(/[\\/:*?"<>|]/g, '-')
@@ -1614,17 +1674,20 @@
 
           if (!baseName) baseName = `photo_${i + 1}`;
 
-          let finalZipEntryName = `${baseName}.jpg`;
+          const isEnglishNumbersOnly = /^[0-9]+$/.test(baseName);
+          const folderPrefix = isEnglishNumbersOnly ? '' : 'أصول_بأسماء_مخصصة/';
+          if (!isEnglishNumbersOnly) customFolderCount++;
+
+          let finalZipEntryPath = `${folderPrefix}${baseName}.jpg`;
           let dupCounter = 2;
-          while (usedNames.has(finalZipEntryName.toLowerCase())) {
-            finalZipEntryName = `${baseName}_${dupCounter}.jpg`;
+          while (usedPaths.has(finalZipEntryPath.toLowerCase())) {
+            finalZipEntryPath = `${folderPrefix}${baseName}_${dupCounter}.jpg`;
             dupCounter++;
           }
-          usedNames.add(finalZipEntryName.toLowerCase());
+          usedPaths.add(finalZipEntryPath.toLowerCase());
 
-          // قراءة البيانات الثنائية مباشرة كـ ArrayBuffer لضمان توافقها مع جميع المتصفحات
           const arrayBuffer = await item.blob.arrayBuffer();
-          zip.file(finalZipEntryName, arrayBuffer, { binary: true, createFolders: false });
+          zip.file(finalZipEntryPath, arrayBuffer, { binary: true });
           addedCount++;
         }
 
@@ -1643,7 +1706,12 @@
         link.click();
         document.body.removeChild(link);
         setTimeout(() => URL.revokeObjectURL(url), 15000);
-        showToast(`✓ تم ضغط ${addedCount} من أصل ${sessionPhotos.length} صورة`);
+
+        if (customFolderCount > 0) {
+          showToast(`✓ ضُغطت ${addedCount} صورة (${customFolderCount} بمجلد فرعي)`);
+        } else {
+          showToast(`✓ تم ضغط ${addedCount} من أصل ${sessionPhotos.length} صورة`);
+        }
       } catch (err) {
         alert('حدث خطأ أثناء إنشاء ملف ZIP: ' + (err.message || ''));
       } finally {

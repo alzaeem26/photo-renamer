@@ -1,4 +1,4 @@
-const CACHE_NAME = 'alzaeem-cam-v6';
+const CACHE_NAME = 'alzaeem-cam-v7';
 const ASSETS = [
   './',
   './index.html',
