@@ -343,8 +343,8 @@
       top: 0;
       right: 0;
       bottom: 0;
-      width: 280px;
-      max-width: 84vw;
+      width: 295px;
+      max-width: 86vw;
       background: rgba(15, 23, 42, 0.68);
       backdrop-filter: blur(20px) saturate(160%);
       -webkit-backdrop-filter: blur(20px) saturate(160%);
@@ -437,15 +437,19 @@
     .drawer-card-actions {
       display: flex;
       align-items: center;
-      gap: 2px;
+      gap: 3px;
       flex-shrink: 0;
     }
     .drawer-icon-btn {
-      background: transparent;
-      border: none;
-      padding: 5px;
-      font-size: 14px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 6px;
+      padding: 5px 6px;
+      font-size: 13px;
       cursor: pointer;
+    }
+    .drawer-icon-btn:active {
+      background: rgba(255, 255, 255, 0.22);
     }
 
     /* نافذة معاينة الصورة البلورية */
@@ -1277,6 +1281,36 @@
       viewerFullImg.src = '';
     });
 
+    // مشاركة / إرسال صورة واحدة من القائمة الجانبية
+    async function shareSinglePhoto(index) {
+      const photo = sessionPhotos[index];
+      if (!photo) return;
+
+      try {
+        const file = new File([photo.blob], photo.name, { type: 'image/jpeg' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: photo.name,
+            text: photo.subInfo ? `${photo.name} (${photo.subInfo})` : photo.name
+          });
+        } else {
+          // بديل في حال عدم دعم المتصفح للمشاركة المباشرة: تنزيل الصورة منفردة
+          const link = document.createElement('a');
+          link.href = photo.dataUrl;
+          link.download = photo.name;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          showToast(`✓ تم تنزيل: ${photo.name}`);
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          showToast('تعذرت مشاركة الصورة');
+        }
+      }
+    }
+
     function deleteSinglePhoto(index) {
       const photo = sessionPhotos[index];
       if (!photo) return;
@@ -1646,6 +1680,7 @@
               </div>
             </div>
             <div class="drawer-card-actions">
+              <button class="drawer-icon-btn" onclick="shareSinglePhoto(${item.originalIndex})" title="إرسال الصورة">📤</button>
               <button class="drawer-icon-btn" onclick="editExistingPhotoName(${item.originalIndex})" title="تعديل الاسم">✏️</button>
               <button class="drawer-icon-btn" onclick="deleteSinglePhoto(${item.originalIndex})" title="حذف">🗑️</button>
             </div>
