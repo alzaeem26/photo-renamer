@@ -115,10 +115,11 @@
       box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
     }
     .btn-db-loaded {
-      background: rgba(99, 102, 241, 0.3);
-      border-color: rgba(129, 140, 248, 0.65);
+      background: rgba(99, 102, 241, 0.35);
+      border-color: rgba(129, 140, 248, 0.75);
       color: #eef2ff;
-      box-shadow: 0 0 10px rgba(99, 102, 241, 0.25);
+      font-weight: 600;
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
     }
     .btn-zip {
       background: rgba(56, 189, 248, 0.26);
@@ -596,6 +597,50 @@
       color: #fff;
     }
 
+    /* بطاقة القاعدة النشطة الدائمة داخل نافذة الأصول */
+    .active-db-banner {
+      display: none;
+      background: rgba(16, 185, 129, 0.22);
+      border: 1px solid rgba(52, 211, 153, 0.65);
+      border-radius: 12px;
+      padding: 10px 12px;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .active-db-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #ecfdf5;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .active-db-meta {
+      font-size: 11px;
+      color: #a7f3d0;
+    }
+
+    /* زر اختيار ملف أنيق بدلاً من مربع الإدخال التقليدي */
+    .custom-file-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 11px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1.5px dashed rgba(125, 211, 252, 0.55);
+      border-radius: 12px;
+      color: #e0f2fe;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .custom-file-btn:active {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
     /* بطاقة مطابقة الأصل البلورية */
     .asset-match-box {
       display: none;
@@ -742,7 +787,7 @@
 
     <div class="header-actions">
       <button class="btn-header" id="qualityBtn" title="تغيير دقة الكاميرا">قصوى</button>
-      <button class="btn-header" id="dbSettingsBtn" title="استيراد قاعدة بيانات الأصول (اختياري)">📊 <span id="dbCountLabel">الأصول</span></button>
+      <button class="btn-header" id="dbSettingsBtn" title="قاعدة بيانات الأصول">📊 <span id="dbCountLabel">الأصول</span></button>
       <button class="btn-header" id="pickFolderBtn" title="تحديد مجلد للحفظ المباشر">📁 <span id="folderLabel">مجلد</span></button>
       <button class="btn-header btn-zip" id="exportZipBtn" disabled>📦 ZIP (<span id="zipCount">0</span>)</button>
     </div>
@@ -848,19 +893,29 @@
     </form>
   </div>
 
-  <!-- نافذة استيراد وإعداد قاعدة بيانات الأصول (اختيارية) -->
+  <!-- نافذة استيراد وإعداد قاعدة بيانات الأصول -->
   <div class="modal-overlay" id="dbModal">
     <div class="modal-card">
       <div class="modal-header">
-        <h3>قاعدة بيانات الأصول (اختياري)</h3>
+        <h3>قاعدة بيانات الأصول</h3>
         <button type="button" class="drawer-close" id="closeDbModalBtn">✕</button>
       </div>
 
-      <p style="font-size:12px; color:#cbd5e1; line-height:1.5;">
-        في حال تحميل ملف Excel أو CSV، ستظهر علامة مائية برقم التسلسل وكود الأصل على الصورة. وفي حال عدم التحميل تُحفظ الصور بدون علامة مائية.
+      <!-- بطاقة توضح القاعدة المحفوظة واسم الملف بشكل دائم -->
+      <div class="active-db-banner" id="activeDbBanner">
+        <div class="active-db-title">✓ القاعدة المرتبطة: <span id="activeDbFileName" style="direction:ltr;">-</span></div>
+        <div class="active-db-meta" id="activeDbMetaText">عدد الأصول المسجلة: 0</div>
+      </div>
+
+      <p id="dbHelperDesc" style="font-size:12px; color:#cbd5e1; line-height:1.5;">
+        اختر ملف Excel أو CSV لربط رقم التسلسل بكود الأصل وطباعته كعلامة مائية. وفي حال عدم الارتباط تُحفظ الصور بدون علامة مائية.
       </p>
 
-      <input type="file" id="excelFileInput" accept=".xlsx,.xls,.csv" style="font-size:13px; padding:8px; border-width:1px;">
+      <!-- حقل مخفي مع زر اختيار مخصص يحل مشكلة "لم يتم اختيار أي ملف" -->
+      <input type="file" id="excelFileInput" accept=".xlsx,.xls,.csv" style="display:none;">
+      <button type="button" class="custom-file-btn" id="triggerFileSelectBtn">
+        📂 <span id="fileSelectBtnText">اختيار ملف Excel / CSV</span>
+      </button>
 
       <div id="columnMappingSection" style="display:none; flex-direction:column; gap:8px; margin-top:4px;">
         <div class="db-field-group">
@@ -885,8 +940,8 @@
       </div>
 
       <div id="dbStatusFooter" style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,0.15); padding-top:8px; margin-top:4px;">
-        <span id="loadedAssetsCount" style="font-size:12px; color:#7dd3fc;">الأصول المحملة: 0</span>
-        <button type="button" id="clearDbAssetsBtn" style="background:rgba(239,68,68,0.35); color:#fecaca; border:1px solid rgba(252,165,165,0.4); padding:5px 10px; border-radius:7px; font-size:11px; cursor:pointer;">حذف القاعدة</button>
+        <span id="loadedAssetsCount" style="font-size:12px; color:#7dd3fc;">الحالة: غير مرتبط</span>
+        <button type="button" id="clearDbAssetsBtn" style="display:none; background:rgba(239,68,68,0.35); color:#fecaca; border:1px solid rgba(252,165,165,0.4); padding:5px 10px; border-radius:7px; font-size:11px; cursor:pointer;">إلغاء الارتباط وحذف القاعدة</button>
       </div>
     </div>
   </div>
@@ -933,6 +988,11 @@
     const dbCountLabel = document.getElementById('dbCountLabel');
     const dbModal = document.getElementById('dbModal');
     const closeDbModalBtn = document.getElementById('closeDbModalBtn');
+    const activeDbBanner = document.getElementById('activeDbBanner');
+    const activeDbFileName = document.getElementById('activeDbFileName');
+    const activeDbMetaText = document.getElementById('activeDbMetaText');
+    const triggerFileSelectBtn = document.getElementById('triggerFileSelectBtn');
+    const fileSelectBtnText = document.getElementById('fileSelectBtnText');
     const excelFileInput = document.getElementById('excelFileInput');
     const columnMappingSection = document.getElementById('columnMappingSection');
     const colSeqSelect = document.getElementById('colSeqSelect');
@@ -971,10 +1031,11 @@
     let editingIndex = null;
 
     let assetsMap = {};
+    let loadedFileName = '';
+    let pendingSelectedFileName = '';
     let parsedRawRows = [];
     let watermarkShowName = false;
 
-    // مستويات دقة وجودة الكاميرا (من أقصى دقة يدعمها الجهاز حتى المتوسطة)
     const qualityLevels = [
       { label: 'قصوى', reqW: 4096, reqH: 3072, maxDim: 0, q: 0.98 },
       { label: 'عالية', reqW: 1920, reqH: 1080, maxDim: 1920, q: 0.90 },
@@ -1029,6 +1090,7 @@
       tx.objectStore('settings').put({
         key: 'assetsData',
         map: assetsMap,
+        fileName: loadedFileName,
         showName: watermarkShowName
       });
       updateDbBadgeUI();
@@ -1041,6 +1103,7 @@
       req.onsuccess = () => {
         if (req.result) {
           assetsMap = req.result.map || {};
+          loadedFileName = req.result.fileName || 'ملف أصول محفوظ';
           watermarkShowName = !!req.result.showName;
           includeNameInWatermark.checked = watermarkShowName;
           updateDbBadgeUI();
@@ -1050,28 +1113,49 @@
 
     function updateDbBadgeUI() {
       const count = Object.keys(assetsMap).length;
-      loadedAssetsCount.textContent = `الأصول المحملة: ${count}`;
       if (count > 0) {
+        // تحديث الزر العلوي ليُظهر دائماً ارتباط القاعدة وعددها
         dbCountLabel.textContent = `الأصول (${count})`;
         dbSettingsBtn.classList.add('btn-db-loaded');
         submitSaveBtn.textContent = 'حفظ وطباعة العلامة';
+
+        // تحديث البطاقة الدائمة داخل نافذة الأصول
+        activeDbBanner.style.display = 'flex';
+        activeDbFileName.textContent = loadedFileName || 'ملف أصول محفوظ';
+        activeDbMetaText.textContent = `عدد الأصول المسجلة والنشطة: ${count} أصل`;
+        fileSelectBtnText.textContent = `تغيير الملف الحالي (${loadedFileName || 'Excel/CSV'})`;
+        loadedAssetsCount.textContent = `الحالة: مرتبط (${count} أصل)`;
+        clearDbAssetsBtn.style.display = 'inline-block';
       } else {
         dbCountLabel.textContent = 'الأصول';
         dbSettingsBtn.classList.remove('btn-db-loaded');
         submitSaveBtn.textContent = 'حفظ';
+
+        activeDbBanner.style.display = 'none';
+        fileSelectBtnText.textContent = 'اختيار ملف Excel / CSV';
+        loadedAssetsCount.textContent = 'الحالة: غير مرتبط';
+        clearDbAssetsBtn.style.display = 'none';
       }
     }
 
     dbSettingsBtn.addEventListener('click', () => {
+      updateDbBadgeUI();
       dbModal.style.display = 'flex';
     });
     closeDbModalBtn.addEventListener('click', () => {
       dbModal.style.display = 'none';
     });
 
+    triggerFileSelectBtn.addEventListener('click', () => {
+      excelFileInput.click();
+    });
+
     excelFileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
+
+      pendingSelectedFileName = file.name;
+      fileSelectBtnText.textContent = `تم اختيار: ${file.name}`;
 
       const reader = new FileReader();
       reader.onload = (evt) => {
@@ -1127,19 +1211,25 @@
       }
 
       assetsMap = newMap;
+      if (pendingSelectedFileName) {
+        loadedFileName = pendingSelectedFileName;
+      }
       watermarkShowName = includeNameInWatermark.checked;
       saveAssetsToDB();
+      columnMappingSection.style.display = 'none';
       dbModal.style.display = 'none';
-      showToast(`✓ تم حفظ ${Object.keys(assetsMap).length} أصل بنجاح`);
+      showToast(`✓ تم ربط ${Object.keys(assetsMap).length} أصل بنجاح`);
     });
 
     clearDbAssetsBtn.addEventListener('click', () => {
-      if (confirm('هل تريد حذف قاعدة بيانات الأصول المحملة؟')) {
+      if (confirm('هل تريد إلغاء ارتباط قاعدة بيانات الأصول وحذفها؟')) {
         assetsMap = {};
+        loadedFileName = '';
+        pendingSelectedFileName = '';
         saveAssetsToDB();
         columnMappingSection.style.display = 'none';
         excelFileInput.value = '';
-        showToast('تم حذف القاعدة - الصور ستحفظ بدون علامة مائية');
+        showToast('تم إلغاء الارتباط - الصور ستحفظ بدون علامة مائية');
       }
     });
 
@@ -1418,7 +1508,6 @@
 
         if (videoTrack && 'getCapabilities' in videoTrack) {
           const caps = videoTrack.getCapabilities();
-          // طلب أعلى دقة حقيقية يدعمها مستشعر الكاميرا في وضع (قصوى)
           if (currentQualityIdx === 0 && caps.width && caps.height) {
             try {
               await videoTrack.applyConstraints({
@@ -1651,7 +1740,6 @@
       resetToCamera();
     }
 
-    // ضغط جميع الصور: الأرقام الإنجليزية الصرفة في الجذر، وأي اسم يحتوي غير الأرقام الإنجليزية داخل مجلد فرعي
     exportZipBtn.addEventListener('click', async () => {
       if (sessionPhotos.length === 0) return;
       exportZipBtn.disabled = true;
