@@ -620,7 +620,7 @@
       color: #a7f3d0;
     }
 
-    /* زر اختيار ملف أنيق بدلاً من مربع الإدخال التقليدي */
+    /* زر اختيار ملف أنيق */
     .custom-file-btn {
       display: flex;
       align-items: center;
@@ -901,17 +901,15 @@
         <button type="button" class="drawer-close" id="closeDbModalBtn">✕</button>
       </div>
 
-      <!-- بطاقة توضح القاعدة المحفوظة واسم الملف بشكل دائم -->
       <div class="active-db-banner" id="activeDbBanner">
         <div class="active-db-title">✓ القاعدة المرتبطة: <span id="activeDbFileName" style="direction:ltr;">-</span></div>
         <div class="active-db-meta" id="activeDbMetaText">عدد الأصول المسجلة: 0</div>
       </div>
 
-      <p id="dbHelperDesc" style="font-size:12px; color:#cbd5e1; line-height:1.5;">
-        اختر ملف Excel أو CSV لربط رقم التسلسل بكود الأصل وطباعته كعلامة مائية. وفي حال عدم الارتباط تُحفظ الصور بدون علامة مائية.
+      <p style="font-size:12px; color:#cbd5e1; line-height:1.5;">
+        اختر ملف Excel أو CSV لربط رقم التسلسل بكود الأصل وطباعته كعلامة مائية. الصور غير الموجودة في القاعدة تُحفظ نظيفة بدون علامة مائية.
       </p>
 
-      <!-- حقل مخفي مع زر اختيار مخصص يحل مشكلة "لم يتم اختيار أي ملف" -->
       <input type="file" id="excelFileInput" accept=".xlsx,.xls,.csv" style="display:none;">
       <button type="button" class="custom-file-btn" id="triggerFileSelectBtn">
         📂 <span id="fileSelectBtnText">اختيار ملف Excel / CSV</span>
@@ -1114,12 +1112,9 @@
     function updateDbBadgeUI() {
       const count = Object.keys(assetsMap).length;
       if (count > 0) {
-        // تحديث الزر العلوي ليُظهر دائماً ارتباط القاعدة وعددها
         dbCountLabel.textContent = `الأصول (${count})`;
         dbSettingsBtn.classList.add('btn-db-loaded');
-        submitSaveBtn.textContent = 'حفظ وطباعة العلامة';
 
-        // تحديث البطاقة الدائمة داخل نافذة الأصول
         activeDbBanner.style.display = 'flex';
         activeDbFileName.textContent = loadedFileName || 'ملف أصول محفوظ';
         activeDbMetaText.textContent = `عدد الأصول المسجلة والنشطة: ${count} أصل`;
@@ -1129,7 +1124,6 @@
       } else {
         dbCountLabel.textContent = 'الأصول';
         dbSettingsBtn.classList.remove('btn-db-loaded');
-        submitSaveBtn.textContent = 'حفظ';
 
         activeDbBanner.style.display = 'none';
         fileSelectBtnText.textContent = 'اختيار ملف Excel / CSV';
@@ -1233,11 +1227,14 @@
       }
     });
 
+    // مطابقة الرقم وتحديث نص زر الحفظ بوضوح حسب حالة الالتقاط أو التعديل
     function lookupAssetByInput(rawText) {
       const clean = rawText.trim();
+      const isEditing = editingIndex !== null;
+
       if (!clean || !hasLoadedAssets()) {
         assetMatchBox.style.display = 'none';
-        submitSaveBtn.textContent = 'حفظ';
+        submitSaveBtn.textContent = isEditing ? 'تحديث الاسم' : 'حفظ';
         return null;
       }
 
@@ -1249,17 +1246,18 @@
         assetMatchBox.classList.remove('not-found');
         matchedAssetName.textContent = `الأصل: ${found.name || 'بدون اسم'}`;
         matchedAssetCode.textContent = found.code || 'لا يوجد كود';
-        submitSaveBtn.textContent = 'حفظ وطباعة العلامة';
+        submitSaveBtn.textContent = isEditing ? 'تحديث الاسم والعلامة' : 'حفظ وطباعة العلامة';
         return found;
       } else {
         assetMatchBox.classList.add('not-found');
-        matchedAssetName.textContent = `رقم التسلسل (${baseSeq}) غير مسجل في القاعدة`;
+        matchedAssetName.textContent = `رقم التسلسل (${baseSeq}) غير مسجل في القاعدة (سيُحفظ بدون علامة مائية)`;
         matchedAssetCode.textContent = '-';
-        submitSaveBtn.textContent = 'حفظ';
+        submitSaveBtn.textContent = isEditing ? 'تحديث الاسم (بدون علامة)' : 'حفظ (بدون علامة)';
         return null;
       }
     }
 
+    // طباعة العلامة المائية فقط في حال وجود قاعدة بيانات محمّلة ومطابقة فعلية للرقم
     function renderPhotoWithWatermark(sourceCanvas, seqText, assetInfo) {
       const outCanvas = document.createElement('canvas');
       outCanvas.width = sourceCanvas.width;
@@ -1313,13 +1311,36 @@
       return outCanvas;
     }
 
+    // تحويل Blob إلى Canvas لإعادة تشكيل العلامة المائية عند تعديل الاسم
+    function blobToCanvas(blob) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = img.naturalWidth;
+          tempCanvas.height = img.naturalHeight;
+          const ctx = tempCanvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          URL.revokeObjectURL(url);
+          resolve(tempCanvas);
+        };
+        img.onerror = (err) => {
+          URL.revokeObjectURL(url);
+          reject(err);
+        };
+        img.src = url;
+      });
+    }
+
     function savePhotoToDB(photoObj) {
       if (!db) return;
       const tx = db.transaction('photos', 'readwrite');
       const req = tx.objectStore('photos').add({
         name: photoObj.name,
         subInfo: photoObj.subInfo || '',
-        blob: photoObj.blob
+        blob: photoObj.blob,
+        rawBlob: photoObj.rawBlob || photoObj.blob
       });
       req.onsuccess = (e) => { photoObj.id = e.target.result; };
     }
@@ -1331,7 +1352,8 @@
         id: photoObj.id,
         name: photoObj.name,
         subInfo: photoObj.subInfo || '',
-        blob: photoObj.blob
+        blob: photoObj.blob,
+        rawBlob: photoObj.rawBlob || photoObj.blob
       });
     }
 
@@ -1354,12 +1376,13 @@
       req.onsuccess = () => {
         const records = req.result || [];
         sessionPhotos = records
-          .filter(r => r && r.blob)
+          .filter(r => r && r.blob && r.blob.size > 0)
           .map(r => ({
             id: r.id,
             name: r.name,
             subInfo: r.subInfo || '',
             blob: r.blob,
+            rawBlob: r.rawBlob || r.blob,
             dataUrl: URL.createObjectURL(r.blob)
           }));
         updateHistoryUI();
@@ -1472,11 +1495,19 @@
       setTimeout(() => fileNameInput.focus(), 50);
     });
 
+    // إضافة أو استبدال اللاحقة السريعة مع الحفاظ على أي شرطة أصلية في رقم الأصل
+    const knownSuffixes = ['-1', '-2', '-3', '-أمام', '-خلف'];
     document.querySelectorAll('.suffix-chip').forEach(btn => {
       btn.addEventListener('click', () => {
         const suffix = btn.getAttribute('data-suffix');
-        const baseClean = fileNameInput.value.trim().split('-')[0];
-        fileNameInput.value = baseClean + suffix;
+        let currentVal = fileNameInput.value.trim();
+        for (const s of knownSuffixes) {
+          if (currentVal.endsWith(s)) {
+            currentVal = currentVal.slice(0, -s.length);
+            break;
+          }
+        }
+        fileNameInput.value = currentVal + suffix;
         onInputChanged();
         fileNameInput.focus();
       });
@@ -1591,8 +1622,14 @@
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, w, h);
 
-      rawCapturedCanvas = canvas;
-      previewImg.src = canvas.toDataURL('image/jpeg', qSetting.q);
+      // إنشاء نسخة Canvas مستقلة للصورة الخام في الذاكرة
+      const isolatedRaw = document.createElement('canvas');
+      isolatedRaw.width = w;
+      isolatedRaw.height = h;
+      isolatedRaw.getContext('2d').drawImage(canvas, 0, 0);
+      rawCapturedCanvas = isolatedRaw;
+
+      previewImg.src = isolatedRaw.toDataURL('image/jpeg', qSetting.q);
       previewImg.style.display = 'block';
       video.style.display = 'none';
 
@@ -1685,19 +1722,37 @@
       const subInfoText = matchedAsset ? `${matchedAsset.code} - ${matchedAsset.name}` : '';
       const qSetting = qualityLevels[currentQualityIdx];
 
+      // حالة تعديل اسم صورة موجودة: إعادة تشكيل العلامة المائية من النسخة الخام المحفوظة
       if (editingIndex !== null) {
         const item = sessionPhotos[editingIndex];
-        item.name = finalFileName;
-        item.subInfo = subInfoText;
+        try {
+          const sourceRawBlob = item.rawBlob || item.blob;
+          const baseCanvas = await blobToCanvas(sourceRawBlob);
+          const reRenderedCanvas = renderPhotoWithWatermark(baseCanvas, cleanSeq, matchedAsset);
+          const updatedDataUrl = reRenderedCanvas.toDataURL('image/jpeg', qSetting.q);
+          const updatedBlob = await new Promise(res => reRenderedCanvas.toBlob(res, 'image/jpeg', qSetting.q));
+
+          URL.revokeObjectURL(item.dataUrl);
+          item.name = finalFileName;
+          item.subInfo = subInfoText;
+          item.blob = updatedBlob;
+          item.rawBlob = sourceRawBlob;
+          item.dataUrl = updatedDataUrl;
+        } catch (err) {
+          item.name = finalFileName;
+          item.subInfo = subInfoText;
+        }
+
         updatePhotoInDB(item);
         updateHistoryUI();
-        showToast(`✓ تم التعديل إلى: ${finalFileName}`);
+        showToast(matchedAsset ? `✓ تم التعديل وتحديث العلامة: ${finalFileName}` : `✓ تم التعديل إلى: ${finalFileName}`);
         resetToCamera();
         return;
       }
 
       if (!rawCapturedCanvas) return;
 
+      const rawBlob = await new Promise(res => rawCapturedCanvas.toBlob(res, 'image/jpeg', qSetting.q));
       const finalCanvas = renderPhotoWithWatermark(rawCapturedCanvas, cleanSeq, matchedAsset);
       const finalDataUrl = finalCanvas.toDataURL('image/jpeg', qSetting.q);
       const finalBlob = await new Promise(res => finalCanvas.toBlob(res, 'image/jpeg', qSetting.q));
@@ -1708,6 +1763,7 @@
         oldItem.name = finalFileName;
         oldItem.subInfo = subInfoText;
         oldItem.blob = finalBlob;
+        oldItem.rawBlob = rawBlob;
         oldItem.dataUrl = finalDataUrl;
         updatePhotoInDB(oldItem);
       } else {
@@ -1715,6 +1771,7 @@
           name: finalFileName,
           subInfo: subInfoText,
           blob: finalBlob,
+          rawBlob: rawBlob,
           dataUrl: finalDataUrl
         };
         sessionPhotos.push(photoObj);
@@ -1740,6 +1797,7 @@
       resetToCamera();
     }
 
+    // ضغط جميع الصور: الأرقام الإنجليزية الصرفة في الجذر، وأي اسم يحتوي غير الأرقام الإنجليزية داخل مجلد فرعي Custom_Names/
     exportZipBtn.addEventListener('click', async () => {
       if (sessionPhotos.length === 0) return;
       exportZipBtn.disabled = true;
@@ -1763,7 +1821,7 @@
           if (!baseName) baseName = `photo_${i + 1}`;
 
           const isEnglishNumbersOnly = /^[0-9]+$/.test(baseName);
-          const folderPrefix = isEnglishNumbersOnly ? '' : 'أصول_بأسماء_مخصصة/';
+          const folderPrefix = isEnglishNumbersOnly ? '' : 'Custom_Names/';
           if (!isEnglishNumbersOnly) customFolderCount++;
 
           let finalZipEntryPath = `${folderPrefix}${baseName}.jpg`;
@@ -1796,7 +1854,7 @@
         setTimeout(() => URL.revokeObjectURL(url), 15000);
 
         if (customFolderCount > 0) {
-          showToast(`✓ ضُغطت ${addedCount} صورة (${customFolderCount} بمجلد فرعي)`);
+          showToast(`✓ ضُغطت ${addedCount} صورة (${customFolderCount} بمجلد Custom_Names)`);
         } else {
           showToast(`✓ تم ضغط ${addedCount} من أصل ${sessionPhotos.length} صورة`);
         }
