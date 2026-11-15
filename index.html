@@ -1225,13 +1225,15 @@
       const req = tx.objectStore('photos').getAll();
       req.onsuccess = () => {
         const records = req.result || [];
-        sessionPhotos = records.map(r => ({
-          id: r.id,
-          name: r.name,
-          subInfo: r.subInfo || '',
-          blob: r.blob,
-          dataUrl: URL.createObjectURL(r.blob)
-        }));
+        sessionPhotos = records
+          .filter(r => r && r.blob)
+          .map(r => ({
+            id: r.id,
+            name: r.name,
+            subInfo: r.subInfo || '',
+            blob: r.blob,
+            dataUrl: URL.createObjectURL(r.blob)
+          }));
         updateHistoryUI();
       };
     }
@@ -1239,7 +1241,7 @@
     function showToast(text) {
       toastMsg.textContent = text;
       toastMsg.classList.add('show');
-      setTimeout(() => toastMsg.classList.remove('show'), 1700);
+      setTimeout(() => toastMsg.classList.remove('show'), 2000);
     }
 
     pickFolderBtn.addEventListener('click', async () => {
@@ -1281,7 +1283,6 @@
       viewerFullImg.src = '';
     });
 
-    // مشاركة / إرسال صورة واحدة من القائمة الجانبية
     async function shareSinglePhoto(index) {
       const photo = sessionPhotos[index];
       if (!photo) return;
@@ -1295,7 +1296,6 @@
             text: photo.subInfo ? `${photo.name} (${photo.subInfo})` : photo.name
           });
         } else {
-          // بديل في حال عدم دعم المتصفح للمشاركة المباشرة: تنزيل الصورة منفردة
           const link = document.createElement('a');
           link.href = photo.dataUrl;
           link.download = photo.name;
@@ -1591,6 +1591,7 @@
       resetToCamera();
     }
 
+    // ضغط جميع الصور المحفوظة (أرقام أو نصوص أو رموز) باستخدام ArrayBuffer لضمان عدم سقوط أي صورة
     exportZipBtn.addEventListener('click', async () => {
       if (sessionPhotos.length === 0) return;
       exportZipBtn.disabled = true;
@@ -1598,21 +1599,41 @@
 
       try {
         const zip = new JSZip();
-        const usedNames = {};
+        const usedNames = new Set();
+        let addedCount = 0;
 
-        for (const item of sessionPhotos) {
-          let fileName = item.name;
-          if (usedNames[fileName]) {
-            usedNames[fileName]++;
-            const base = fileName.replace(/\.jpg$/i, '');
-            fileName = `${base}_${usedNames[item.name]}.jpg`;
-          } else {
-            usedNames[fileName] = 1;
+        for (let i = 0; i < sessionPhotos.length; i++) {
+          const item = sessionPhotos[i];
+          if (!item || !item.blob) continue;
+
+          // تنظيف اسم الملف وضمان وجود امتداد .jpg وعدم تكرار الاسم داخل الأرشيف
+          let baseName = String(item.name || `photo_${i + 1}`)
+            .replace(/\.jpg$/i, '')
+            .replace(/[\\/:*?"<>|]/g, '-')
+            .trim();
+
+          if (!baseName) baseName = `photo_${i + 1}`;
+
+          let finalZipEntryName = `${baseName}.jpg`;
+          let dupCounter = 2;
+          while (usedNames.has(finalZipEntryName.toLowerCase())) {
+            finalZipEntryName = `${baseName}_${dupCounter}.jpg`;
+            dupCounter++;
           }
-          zip.file(fileName, item.blob);
+          usedNames.add(finalZipEntryName.toLowerCase());
+
+          // قراءة البيانات الثنائية مباشرة كـ ArrayBuffer لضمان توافقها مع جميع المتصفحات
+          const arrayBuffer = await item.blob.arrayBuffer();
+          zip.file(finalZipEntryName, arrayBuffer, { binary: true, createFolders: false });
+          addedCount++;
         }
 
-        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const zipBlob = await zip.generateAsync({
+          type: 'blob',
+          compression: 'DEFLATE',
+          compressionOptions: { level: 6 }
+        });
+
         const url = URL.createObjectURL(zipBlob);
         const dateStr = new Date().toISOString().slice(0, 10);
         const link = document.createElement('a');
@@ -1621,10 +1642,10 @@
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(url), 10000);
-        showToast('✓ تم تنزيل ملف ZIP');
+        setTimeout(() => URL.revokeObjectURL(url), 15000);
+        showToast(`✓ تم ضغط ${addedCount} من أصل ${sessionPhotos.length} صورة`);
       } catch (err) {
-        alert('حدث خطأ أثناء إنشاء ملف ZIP.');
+        alert('حدث خطأ أثناء إنشاء ملف ZIP: ' + (err.message || ''));
       } finally {
         exportZipBtn.disabled = false;
         exportZipBtn.innerHTML = `📦 ZIP (<span id="zipCount">${sessionPhotos.length}</span>)`;
