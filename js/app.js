@@ -866,6 +866,30 @@ function resetToCamera() {
 }
 
 
+const backupMenuToggleBtn = document.getElementById('backupMenuToggleBtn');
+const backupActionsWrap = document.getElementById('backupActionsWrap');
+
+if (backupMenuToggleBtn && backupActionsWrap) {
+  backupMenuToggleBtn.addEventListener('click', () => {
+    const isHidden = backupActionsWrap.style.display === 'none';
+    if (isHidden) {
+      alert(
+        "سيظهر لك الآن خياران:\n\n" +
+        "1. 💾 تصدير نسخة احتياطية كاملة:\n" +
+        "يجمع جميع الصور (الخام والنهائية) مع قاعدة بيانات الأصول في ملف ZIP واحد آمن.\n\n" +
+        "2. ♻️ استعادة نسخة احتياطية:\n" +
+        "يعيد تحميل الصور وقاعدة الأصول من ملف النسخة الاحتياطية.\n\n" +
+        "الغاية: حماية بياناتك من الضياع أو نقلها بسهولة إلى جهاز آخر."
+      );
+      backupActionsWrap.style.display = 'flex';
+      backupMenuToggleBtn.textContent = '▲ إخفاء خيارات النسخ الاحتياطي';
+    } else {
+      backupActionsWrap.style.display = 'none';
+      backupMenuToggleBtn.textContent = '⚙️ النسخ الاحتياطي والاستعادة';
+    }
+  });
+}
+
 const backupExportBtn = document.getElementById('backupExportBtn');
 const backupRestoreBtn = document.getElementById('backupRestoreBtn');
 const backupRestoreInput = document.getElementById('backupRestoreInput');
@@ -923,4 +947,5 @@ if (backupRestoreBtn && backupRestoreInput) {
 
 initAppStorage();
 startCamera();
+
 
