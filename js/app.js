@@ -1,6 +1,7 @@
 ﻿import { StorageEngine } from './storage.js';
 import { ImageEngine } from './image-engine.js';
 import { AssetEngine, KNOWN_SUFFIXES } from './assets.js';
+import { BackupEngine } from './backup.js';
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').then((reg) => {
@@ -864,5 +865,62 @@ function resetToCamera() {
   video.style.display = 'block';
 }
 
+
+const backupExportBtn = document.getElementById('backupExportBtn');
+const backupRestoreBtn = document.getElementById('backupRestoreBtn');
+const backupRestoreInput = document.getElementById('backupRestoreInput');
+
+if (backupExportBtn) {
+  backupExportBtn.addEventListener('click', async () => {
+    backupExportBtn.disabled = true;
+    backupExportBtn.textContent = 'جاري تجهيز النسخة (0%)...';
+    try {
+      const { zipBlob, manifest } = await BackupEngine.exportFullBackup((pct) => {
+        backupExportBtn.textContent = `جاري تجهيز النسخة (${pct}%)...`;
+      });
+      const url = URL.createObjectURL(zipBlob);
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Alzaeem_FullBackup_${dateStr}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 15000);
+      showToast(`✓ تم تصدير نسخة احتياطية (${manifest.photosCount} صورة)`);
+    } catch (err) {
+      alert('فشل إنشاء النسخة الاحتياطية: ' + (err.message || ''));
+    } finally {
+      backupExportBtn.disabled = false;
+      backupExportBtn.textContent = '💾 تصدير نسخة احتياطية كاملة';
+    }
+  });
+}
+
+if (backupRestoreBtn && backupRestoreInput) {
+  backupRestoreBtn.addEventListener('click', () => backupRestoreInput.click());
+
+  backupRestoreInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const inspected = await BackupEngine.inspectBackup(file);
+      const { manifest } = inspected;
+      const msg = `تم فحص النسخة الاحتياطية بنجاح:\n• الصور: ${manifest.photosCount}\n• الأصول: ${manifest.assetsCount}\n• التاريخ: ${manifest.exportedAt.slice(0, 10)}\n\nهل تريد استبدال الصور الحالية بالنسخة المستعادة؟\n(موافق = استبدال | إلغاء = دمج مع الحالية)`;
+      const replaceExisting = confirm(msg);
+      const restoredCount = await BackupEngine.restoreFromInspected(inspected, replaceExisting);
+      await loadPhotosFromDB();
+      updateDbBadgeUI();
+      closeDrawer();
+      showToast(`✓ تمت استعادة ${restoredCount} صورة بنجاح`);
+    } catch (err) {
+      alert('تعذرت استعادة النسخة: ' + (err.message || ''));
+    } finally {
+      backupRestoreInput.value = '';
+    }
+  });
+}
+
 initAppStorage();
 startCamera();
+
