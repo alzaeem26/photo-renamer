@@ -1,4 +1,6 @@
-﻿if ('serviceWorker' in navigator) {
+﻿import { StorageEngine } from './storage.js';
+
+if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').then((reg) => {
     reg.addEventListener('updatefound', () => {
       const newWorker = reg.installing;
@@ -91,7 +93,6 @@ let rawCapturedCanvas = null;
 let directoryHandle = null;
 let sessionPhotos = [];
 let isNumericMode = true;
-let db = null;
 let editingIndex = null;
 
 let assetsMap = {};
@@ -126,53 +127,41 @@ window.addEventListener('online', updateOnlineStatus);
 window.addEventListener('offline', updateOnlineStatus);
 updateOnlineStatus();
 
-function initDB() {
-  return new Promise((resolve) => {
-    const request = indexedDB.open('AlzaeemCameraDB_v2', 1);
-    request.onupgradeneeded = (e) => {
-      const database = e.target.result;
-      if (!database.objectStoreNames.contains('photos')) {
-        database.createObjectStore('photos', { keyPath: 'id', autoIncrement: true });
-      }
-      if (!database.objectStoreNames.contains('settings')) {
-        database.createObjectStore('settings', { keyPath: 'key' });
-      }
-    };
-    request.onsuccess = (e) => {
-      db = e.target.result;
-      loadPhotosFromDB();
-      loadAssetsFromDB();
-      resolve();
-    };
-    request.onerror = () => resolve();
-  });
+async function initAppStorage() {
+  try {
+    await StorageEngine.init();
+    await loadPhotosFromDB();
+    await loadAssetsFromDB();
+  } catch (err) {
+    alert('تعذر تهيئة قاعدة البيانات المحلية: ' + (err.message || ''));
+  }
 }
 
-function saveAssetsToDB() {
-  if (!db) return;
-  const tx = db.transaction('settings', 'readwrite');
-  tx.objectStore('settings').put({
-    key: 'assetsData',
-    map: assetsMap,
-    fileName: loadedFileName,
-    showName: watermarkShowName
-  });
-  updateDbBadgeUI();
+async function saveAssetsToDB() {
+  try {
+    await StorageEngine.putRecord('settings', {
+      key: 'assetsData',
+      map: assetsMap,
+      fileName: loadedFileName,
+      showName: watermarkShowName
+    });
+    updateDbBadgeUI();
+  } catch (err) {
+    alert('فشل حفظ قاعدة الأصول في التخزين المحلي.');
+  }
 }
 
-function loadAssetsFromDB() {
-  if (!db) return;
-  const tx = db.transaction('settings', 'readonly');
-  const req = tx.objectStore('settings').get('assetsData');
-  req.onsuccess = () => {
-    if (req.result) {
-      assetsMap = req.result.map || {};
-      loadedFileName = req.result.fileName || 'ملف أصول محفوظ';
-      watermarkShowName = !!req.result.showName;
+async function loadAssetsFromDB() {
+  try {
+    const res = await StorageEngine.getRecord('settings', 'assetsData');
+    if (res) {
+      assetsMap = res.map || {};
+      loadedFileName = res.fileName || 'ملف أصول محفوظ';
+      watermarkShowName = !!res.showName;
       includeNameInWatermark.checked = watermarkShowName;
       updateDbBadgeUI();
     }
-  };
+  } catch (err) {}
 }
 
 function updateDbBadgeUI() {
@@ -252,7 +241,7 @@ function populateColumnSelects(headers) {
   });
 }
 
-saveDbMappingBtn.addEventListener('click', () => {
+saveDbMappingBtn.addEventListener('click', async () => {
   const seqCol = colSeqSelect.value;
   const nameCol = colNameSelect.value;
   const codeCol = colCodeSelect.value;
@@ -269,18 +258,18 @@ saveDbMappingBtn.addEventListener('click', () => {
   assetsMap = newMap;
   if (pendingSelectedFileName) loadedFileName = pendingSelectedFileName;
   watermarkShowName = includeNameInWatermark.checked;
-  saveAssetsToDB();
+  await saveAssetsToDB();
   columnMappingSection.style.display = 'none';
   dbModal.style.display = 'none';
   showToast(`✓ تم ربط ${Object.keys(assetsMap).length} أصل بنجاح`);
 });
 
-clearDbAssetsBtn.addEventListener('click', () => {
+clearDbAssetsBtn.addEventListener('click', async () => {
   if (confirm('هل تريد إلغاء ارتباط قاعدة بيانات الأصول وحذفها؟')) {
     assetsMap = {};
     loadedFileName = '';
     pendingSelectedFileName = '';
-    saveAssetsToDB();
+    await saveAssetsToDB();
     columnMappingSection.style.display = 'none';
     excelFileInput.value = '';
     showToast('تم إلغاء الارتباط - الصور ستحفظ بدون علامة مائية');
@@ -384,60 +373,21 @@ function blobToCanvas(blob) {
   });
 }
 
-function savePhotoToDB(photoObj) {
-  if (!db) return;
-  const tx = db.transaction('photos', 'readwrite');
-  const req = tx.objectStore('photos').add({
-    name: photoObj.name,
-    subInfo: photoObj.subInfo || '',
-    blob: photoObj.blob,
-    rawBlob: photoObj.rawBlob || photoObj.blob
-  });
-  req.onsuccess = (e) => { photoObj.id = e.target.result; };
-}
-
-function updatePhotoInDB(photoObj) {
-  if (!db || !photoObj.id) return;
-  const tx = db.transaction('photos', 'readwrite');
-  tx.objectStore('photos').put({
-    id: photoObj.id,
-    name: photoObj.name,
-    subInfo: photoObj.subInfo || '',
-    blob: photoObj.blob,
-    rawBlob: photoObj.rawBlob || photoObj.blob
-  });
-}
-
-function deletePhotoFromDB(id) {
-  if (!db || !id) return;
-  const tx = db.transaction('photos', 'readwrite');
-  tx.objectStore('photos').delete(id);
-}
-
-function clearDB() {
-  if (!db) return;
-  const tx = db.transaction('photos', 'readwrite');
-  tx.objectStore('photos').clear();
-}
-
-function loadPhotosFromDB() {
-  if (!db) return;
-  const tx = db.transaction('photos', 'readonly');
-  const req = tx.objectStore('photos').getAll();
-  req.onsuccess = () => {
-    const records = req.result || [];
-    sessionPhotos = records
-      .filter(r => r && r.blob && r.blob.size > 0)
-      .map(r => ({
-        id: r.id,
-        name: r.name,
-        subInfo: r.subInfo || '',
-        blob: r.blob,
-        rawBlob: r.rawBlob || r.blob,
-        dataUrl: URL.createObjectURL(r.blob)
-      }));
-    updateHistoryUI();
-  };
+async function loadPhotosFromDB() {
+  const records = (await StorageEngine.getAllPhotos()) || [];
+  sessionPhotos = records
+    .filter(r => r && (r.finalBlob || r.blob) && (r.finalBlob || r.blob).size > 0)
+    .map(r => {
+      const activeBlob = r.finalBlob || r.blob;
+      return {
+        ...r,
+        blob: activeBlob,
+        finalBlob: activeBlob,
+        rawBlob: r.rawBlob || activeBlob,
+        dataUrl: URL.createObjectURL(activeBlob)
+      };
+    });
+  updateHistoryUI();
 }
 
 function showToast(text) {
@@ -490,7 +440,7 @@ window.shareSinglePhoto = async function(index) {
   const photo = sessionPhotos[index];
   if (!photo) return;
   try {
-    const file = new File([photo.blob], photo.name, { type: 'image/jpeg' });
+    const file = new File([photo.finalBlob || photo.blob], photo.name, { type: 'image/jpeg' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({
         files: [file],
@@ -511,14 +461,18 @@ window.shareSinglePhoto = async function(index) {
   }
 };
 
-window.deleteSinglePhoto = function(index) {
+window.deleteSinglePhoto = async function(index) {
   const photo = sessionPhotos[index];
   if (!photo) return;
   if (confirm(`حذف الصورة ${photo.name}؟`)) {
-    deletePhotoFromDB(photo.id);
-    URL.revokeObjectURL(photo.dataUrl);
-    sessionPhotos.splice(index, 1);
-    updateHistoryUI();
+    try {
+      await StorageEngine.deletePhoto(photo.id);
+      URL.revokeObjectURL(photo.dataUrl);
+      sessionPhotos.splice(index, 1);
+      updateHistoryUI();
+    } catch (err) {
+      alert('تعذر حذف الصورة من قاعدة البيانات.');
+    }
   }
 };
 
@@ -752,6 +706,7 @@ async function finalizeSave(finalFileName, replaceIndex) {
   const matchedAsset = lookupAssetByInput(cleanSeq);
   const subInfoText = matchedAsset ? `${matchedAsset.code} - ${matchedAsset.name}` : '';
   const qSetting = qualityLevels[currentQualityIdx];
+  const now = Date.now();
 
   if (editingIndex !== null) {
     const item = sessionPhotos[editingIndex];
@@ -761,67 +716,98 @@ async function finalizeSave(finalFileName, replaceIndex) {
       const reRenderedCanvas = renderPhotoWithWatermark(baseCanvas, cleanSeq, matchedAsset);
       const updatedDataUrl = reRenderedCanvas.toDataURL('image/jpeg', qSetting.q);
       const updatedBlob = await new Promise(res => reRenderedCanvas.toBlob(res, 'image/jpeg', qSetting.q));
+
+      const updatedRecord = {
+        id: item.id,
+        name: finalFileName,
+        subInfo: subInfoText,
+        rawBlob: sourceRawBlob,
+        finalBlob: updatedBlob,
+        assetSequence: cleanSeq,
+        assetCode: matchedAsset ? matchedAsset.code : '',
+        assetName: matchedAsset ? matchedAsset.name : '',
+        watermarkApplied: !!(hasLoadedAssets() && matchedAsset),
+        qualityLevel: qSetting.label,
+        createdAt: item.createdAt || now,
+        updatedAt: now
+      };
+
+      await StorageEngine.updatePhoto(updatedRecord);
       URL.revokeObjectURL(item.dataUrl);
-      item.name = finalFileName;
-      item.subInfo = subInfoText;
-      item.blob = updatedBlob;
-      item.rawBlob = sourceRawBlob;
-      item.dataUrl = updatedDataUrl;
+      sessionPhotos[editingIndex] = { ...updatedRecord, blob: updatedBlob, dataUrl: updatedDataUrl };
+      updateHistoryUI();
+      showToast(matchedAsset ? `✓ تم التعديل وتحديث العلامة: ${finalFileName}` : `✓ تم التعديل إلى: ${finalFileName}`);
+      resetToCamera();
     } catch (err) {
-      item.name = finalFileName;
-      item.subInfo = subInfoText;
+      alert('فشل حفظ التعديل في قاعدة البيانات: ' + (err.message || ''));
     }
-    updatePhotoInDB(item);
-    updateHistoryUI();
-    showToast(matchedAsset ? `✓ تم التعديل وتحديث العلامة: ${finalFileName}` : `✓ تم التعديل إلى: ${finalFileName}`);
-    resetToCamera();
     return;
   }
 
   if (!rawCapturedCanvas) return;
 
-  const rawBlob = await new Promise(res => rawCapturedCanvas.toBlob(res, 'image/jpeg', qSetting.q));
-  const finalCanvas = renderPhotoWithWatermark(rawCapturedCanvas, cleanSeq, matchedAsset);
-  const finalDataUrl = finalCanvas.toDataURL('image/jpeg', qSetting.q);
-  const finalBlob = await new Promise(res => finalCanvas.toBlob(res, 'image/jpeg', qSetting.q));
+  try {
+    const rawBlob = await new Promise(res => rawCapturedCanvas.toBlob(res, 'image/jpeg', qSetting.q));
+    const finalCanvas = renderPhotoWithWatermark(rawCapturedCanvas, cleanSeq, matchedAsset);
+    const finalDataUrl = finalCanvas.toDataURL('image/jpeg', qSetting.q);
+    const finalBlob = await new Promise(res => finalCanvas.toBlob(res, 'image/jpeg', qSetting.q));
 
-  if (replaceIndex !== -1) {
-    const oldItem = sessionPhotos[replaceIndex];
-    URL.revokeObjectURL(oldItem.dataUrl);
-    oldItem.name = finalFileName;
-    oldItem.subInfo = subInfoText;
-    oldItem.blob = finalBlob;
-    oldItem.rawBlob = rawBlob;
-    oldItem.dataUrl = finalDataUrl;
-    updatePhotoInDB(oldItem);
-  } else {
-    const photoObj = {
-      name: finalFileName,
-      subInfo: subInfoText,
-      blob: finalBlob,
-      rawBlob: rawBlob,
-      dataUrl: finalDataUrl
-    };
-    sessionPhotos.push(photoObj);
-    savePhotoToDB(photoObj);
-  }
+    if (replaceIndex !== -1) {
+      const oldItem = sessionPhotos[replaceIndex];
+      const replacedRecord = {
+        id: oldItem.id,
+        name: finalFileName,
+        subInfo: subInfoText,
+        rawBlob: rawBlob,
+        finalBlob: finalBlob,
+        assetSequence: cleanSeq,
+        assetCode: matchedAsset ? matchedAsset.code : '',
+        assetName: matchedAsset ? matchedAsset.name : '',
+        watermarkApplied: !!(hasLoadedAssets() && matchedAsset),
+        qualityLevel: qSetting.label,
+        createdAt: oldItem.createdAt || now,
+        updatedAt: now
+      };
+      await StorageEngine.updatePhoto(replacedRecord);
+      URL.revokeObjectURL(oldItem.dataUrl);
+      sessionPhotos[replaceIndex] = { ...replacedRecord, blob: finalBlob, dataUrl: finalDataUrl };
+    } else {
+      const newRecord = {
+        name: finalFileName,
+        subInfo: subInfoText,
+        rawBlob: rawBlob,
+        finalBlob: finalBlob,
+        assetSequence: cleanSeq,
+        assetCode: matchedAsset ? matchedAsset.code : '',
+        assetName: matchedAsset ? matchedAsset.name : '',
+        watermarkApplied: !!(hasLoadedAssets() && matchedAsset),
+        qualityLevel: qSetting.label,
+        createdAt: now,
+        updatedAt: now
+      };
+      const newId = await StorageEngine.addPhoto(newRecord);
+      sessionPhotos.push({ ...newRecord, id: newId, blob: finalBlob, dataUrl: finalDataUrl });
+    }
 
-  updateHistoryUI();
+    updateHistoryUI();
 
-  if (directoryHandle) {
-    try {
-      const fileHandle = await directoryHandle.getFileHandle(finalFileName, { create: true });
-      const writable = await fileHandle.createWritable();
-      await writable.write(finalBlob);
-      await writable.close();
-      showToast(`✓ حُفظت في المجلد: ${finalFileName}`);
-    } catch (err) {
+    if (directoryHandle) {
+      try {
+        const fileHandle = await directoryHandle.getFileHandle(finalFileName, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(finalBlob);
+        await writable.close();
+        showToast(`✓ حُفظت في المجلد: ${finalFileName}`);
+      } catch (err) {
+        showToast(`✓ حُفظت: ${finalFileName}`);
+      }
+    } else {
       showToast(`✓ حُفظت: ${finalFileName}`);
     }
-  } else {
-    showToast(`✓ حُفظت: ${finalFileName}`);
+    resetToCamera();
+  } catch (err) {
+    alert('فشل حفظ الصورة في قاعدة البيانات. تأكد من توفر مساحة كافية على الجهاز.');
   }
-  resetToCamera();
 }
 
 exportZipBtn.addEventListener('click', async () => {
@@ -835,7 +821,8 @@ exportZipBtn.addEventListener('click', async () => {
     let customFolderCount = 0;
     for (let i = 0; i < sessionPhotos.length; i++) {
       const item = sessionPhotos[i];
-      if (!item || !item.blob) continue;
+      const activeBlob = item ? (item.finalBlob || item.blob) : null;
+      if (!activeBlob) continue;
       let baseName = String(item.name || `photo_${i + 1}`)
         .replace(/\.jpg$/i, '')
         .replace(/[\\/:*?"<>|]/g, '-')
@@ -851,7 +838,7 @@ exportZipBtn.addEventListener('click', async () => {
         dupCounter++;
       }
       usedPaths.add(finalZipEntryPath.toLowerCase());
-      const arrayBuffer = await item.blob.arrayBuffer();
+      const arrayBuffer = await activeBlob.arrayBuffer();
       zip.file(finalZipEntryPath, arrayBuffer, { binary: true });
       addedCount++;
     }
@@ -882,15 +869,19 @@ exportZipBtn.addEventListener('click', async () => {
   }
 });
 
-clearSessionBtn.addEventListener('click', () => {
+clearSessionBtn.addEventListener('click', async () => {
   if (sessionPhotos.length === 0) return;
   if (confirm('هل تريد مسح جميع الصور المحفوظة في هذه الجلسة؟')) {
-    sessionPhotos.forEach(p => URL.revokeObjectURL(p.dataUrl));
-    sessionPhotos = [];
-    clearDB();
-    updateHistoryUI();
-    closeDrawer();
-    showToast('تم مسح الجلسة');
+    try {
+      await StorageEngine.clearPhotos();
+      sessionPhotos.forEach(p => URL.revokeObjectURL(p.dataUrl));
+      sessionPhotos = [];
+      updateHistoryUI();
+      closeDrawer();
+      showToast('تم مسح الجلسة');
+    } catch (err) {
+      alert('تعذر مسح الجلسة.');
+    }
   }
 });
 
@@ -939,5 +930,5 @@ function resetToCamera() {
   video.style.display = 'block';
 }
 
-initDB();
+initAppStorage();
 startCamera();
