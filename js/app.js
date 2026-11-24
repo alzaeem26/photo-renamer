@@ -3,6 +3,26 @@ import { ImageEngine } from './image-engine.js';
 import { AssetEngine, KNOWN_SUFFIXES } from './assets.js';
 import { BackupEngine } from './backup.js';
 
+let pendingWorker = null;
+const updateBanner = document.getElementById('updateBanner');
+const applyUpdateBtn = document.getElementById('applyUpdateBtn');
+const dismissUpdateBtn = document.getElementById('dismissUpdateBtn');
+
+if (applyUpdateBtn) {
+  applyUpdateBtn.addEventListener('click', () => {
+    if (pendingWorker) {
+      pendingWorker.postMessage({ type: 'SKIP_WAITING' });
+      window.location.reload();
+    }
+  });
+}
+
+if (dismissUpdateBtn && updateBanner) {
+  dismissUpdateBtn.addEventListener('click', () => {
+    updateBanner.style.display = 'none';
+  });
+}
+
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').then((reg) => {
     reg.addEventListener('updatefound', () => {
@@ -10,14 +30,13 @@ if ('serviceWorker' in navigator) {
       if (!newWorker) return;
       newWorker.addEventListener('statechange', () => {
         if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          if (confirm('يتوفر تحديث جديد للتطبيق. هل تريد تفعيله الآن؟')) {
-            newWorker.postMessage({ type: 'SKIP_WAITING' });
-            window.location.reload();
-          }
+          pendingWorker = newWorker;
+          if (updateBanner) updateBanner.style.display = 'flex';
         }
       });
     });
   }).catch(() => {});
+}
 }
 
 const cameraContainer = document.getElementById('cameraContainer');
@@ -947,5 +966,6 @@ if (backupRestoreBtn && backupRestoreInput) {
 
 initAppStorage();
 startCamera();
+
 
 
