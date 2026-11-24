@@ -1,5 +1,6 @@
 ﻿import { StorageEngine } from './storage.js';
 import { ImageEngine } from './image-engine.js';
+import { AssetEngine, KNOWN_SUFFIXES } from './assets.js';
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').then((reg) => {
@@ -96,12 +97,6 @@ let sessionPhotos = [];
 let isNumericMode = true;
 let editingIndex = null;
 
-let assetsMap = {};
-let loadedFileName = '';
-let pendingSelectedFileName = '';
-let parsedRawRows = [];
-let watermarkShowName = false;
-
 const qualityLevels = ImageEngine.qualityLevels;
 let currentQualityIdx = 0;
 
@@ -112,10 +107,6 @@ qualityBtn.addEventListener('click', () => {
   showToast(`دقة الكاميرا: ${selected.label}`);
   startCamera();
 });
-
-function hasLoadedAssets() {
-  return Object.keys(assetsMap).length > 0;
-}
 
 function updateOnlineStatus() {
   offlineBadge.style.display = navigator.onLine ? 'none' : 'inline-block';
@@ -128,48 +119,23 @@ async function initAppStorage() {
   try {
     await StorageEngine.init();
     await loadPhotosFromDB();
-    await loadAssetsFromDB();
+    await AssetEngine.loadFromDB();
+    includeNameInWatermark.checked = AssetEngine.showNameInWatermark;
+    updateDbBadgeUI();
   } catch (err) {
     alert('تعذر تهيئة قاعدة البيانات المحلية: ' + (err.message || ''));
   }
 }
 
-async function saveAssetsToDB() {
-  try {
-    await StorageEngine.putRecord('settings', {
-      key: 'assetsData',
-      map: assetsMap,
-      fileName: loadedFileName,
-      showName: watermarkShowName
-    });
-    updateDbBadgeUI();
-  } catch (err) {
-    alert('فشل حفظ قاعدة الأصول في التخزين المحلي.');
-  }
-}
-
-async function loadAssetsFromDB() {
-  try {
-    const res = await StorageEngine.getRecord('settings', 'assetsData');
-    if (res) {
-      assetsMap = res.map || {};
-      loadedFileName = res.fileName || 'ملف أصول محفوظ';
-      watermarkShowName = !!res.showName;
-      includeNameInWatermark.checked = watermarkShowName;
-      updateDbBadgeUI();
-    }
-  } catch (err) {}
-}
-
 function updateDbBadgeUI() {
-  const count = Object.keys(assetsMap).length;
+  const count = AssetEngine.getCount();
   if (count > 0) {
     dbCountLabel.textContent = `الأصول (${count})`;
     dbSettingsBtn.classList.add('btn-db-loaded');
     activeDbBanner.style.display = 'flex';
-    activeDbFileName.textContent = loadedFileName || 'ملف أصول محفوظ';
+    activeDbFileName.textContent = AssetEngine.fileName || 'ملف أصول محفوظ';
     activeDbMetaText.textContent = `عدد الأصول المسجلة والنشطة: ${count} أصل`;
-    fileSelectBtnText.textContent = `تغيير الملف الحالي (${loadedFileName || 'Excel/CSV'})`;
+    fileSelectBtnText.textContent = `تغيير الملف الحالي (${AssetEngine.fileName || 'Excel/CSV'})`;
     loadedAssetsCount.textContent = `الحالة: مرتبط (${count} أصل)`;
     clearDbAssetsBtn.style.display = 'inline-block';
   } else {
@@ -193,31 +159,17 @@ triggerFileSelectBtn.addEventListener('click', () => {
   excelFileInput.click();
 });
 
-excelFileInput.addEventListener('change', (e) => {
+excelFileInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  pendingSelectedFileName = file.name;
   fileSelectBtnText.textContent = `تم اختيار: ${file.name}`;
-  const reader = new FileReader();
-  reader.onload = (evt) => {
-    try {
-      const data = new Uint8Array(evt.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-      parsedRawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
-      if (parsedRawRows.length === 0) {
-        alert('الملف فارغ أو لا يحتوي على بيانات.');
-        return;
-      }
-      const headers = Object.keys(parsedRawRows[0]);
-      populateColumnSelects(headers);
-      columnMappingSection.style.display = 'flex';
-    } catch (err) {
-      alert('تعذر قراءة الملف. تأكد أنه بصيغة Excel (.xlsx) أو CSV.');
-    }
-  };
-  reader.readAsArrayBuffer(file);
+  try {
+    const { headers } = await AssetEngine.parseFile(file);
+    populateColumnSelects(headers);
+    columnMappingSection.style.display = 'flex';
+  } catch (err) {
+    alert(err.message);
+  }
 });
 
 function populateColumnSelects(headers) {
@@ -239,58 +191,49 @@ function populateColumnSelects(headers) {
 }
 
 saveDbMappingBtn.addEventListener('click', async () => {
-  const seqCol = colSeqSelect.value;
-  const nameCol = colNameSelect.value;
-  const codeCol = colCodeSelect.value;
-  const newMap = {};
-  for (const row of parsedRawRows) {
-    const seqVal = String(row[seqCol] ?? '').trim();
-    if (seqVal) {
-      newMap[seqVal] = {
-        name: String(row[nameCol] ?? '').trim(),
-        code: String(row[codeCol] ?? '').trim()
-      };
-    }
+  const { newMap, total, duplicatesCount } = AssetEngine.buildAndValidate(
+    colSeqSelect.value,
+    colNameSelect.value,
+    colCodeSelect.value,
+    includeNameInWatermark.checked
+  );
+
+  if (duplicatesCount > 0) {
+    const proceed = confirm(`تنبيه: تم اكتشاف (${duplicatesCount}) رقم تسلسل مكرر داخل الملف؛ سيتم اعتماد آخر سجل لكل رقم مكرر. هل تريد المتابعة؟`);
+    if (!proceed) return;
   }
-  assetsMap = newMap;
-  if (pendingSelectedFileName) loadedFileName = pendingSelectedFileName;
-  watermarkShowName = includeNameInWatermark.checked;
-  await saveAssetsToDB();
-  columnMappingSection.style.display = 'none';
-  dbModal.style.display = 'none';
-  showToast(`✓ تم ربط ${Object.keys(assetsMap).length} أصل بنجاح`);
+
+  try {
+    await AssetEngine.commitMap(newMap, includeNameInWatermark.checked);
+    updateDbBadgeUI();
+    columnMappingSection.style.display = 'none';
+    dbModal.style.display = 'none';
+    showToast(`✓ تم ربط ${total} أصل بنجاح`);
+  } catch (err) {
+    alert('فشل حفظ قاعدة الأصول في التخزين المحلي.');
+  }
 });
 
 clearDbAssetsBtn.addEventListener('click', async () => {
   if (confirm('هل تريد إلغاء ارتباط قاعدة بيانات الأصول وحذفها؟')) {
-    assetsMap = {};
-    loadedFileName = '';
-    pendingSelectedFileName = '';
-    await saveAssetsToDB();
+    await AssetEngine.clear();
+    updateDbBadgeUI();
     columnMappingSection.style.display = 'none';
     excelFileInput.value = '';
     showToast('تم إلغاء الارتباط - الصور ستحفظ بدون علامة مائية');
   }
 });
 
-const knownSuffixes = ['-1', '-2', '-3', '-أمام', '-خلف'];
-
 function lookupAssetByInput(rawText) {
   const clean = rawText.trim();
   const isEditing = editingIndex !== null;
-  if (!clean || !hasLoadedAssets()) {
+  if (!clean || !AssetEngine.hasLoaded()) {
     assetMatchBox.style.display = 'none';
     submitSaveBtn.textContent = isEditing ? 'تحديث الاسم' : 'حفظ';
     return null;
   }
-  let baseSeq = clean;
-  for (const s of knownSuffixes) {
-    if (baseSeq.endsWith(s)) {
-      baseSeq = baseSeq.slice(0, -s.length).trim();
-      break;
-    }
-  }
-  const found = assetsMap[clean] || assetsMap[baseSeq];
+
+  const { found, baseSeq } = AssetEngine.lookup(clean);
   assetMatchBox.style.display = 'block';
   if (found) {
     assetMatchBox.classList.remove('not-found');
@@ -313,11 +256,11 @@ function renderPhotoWithWatermark(sourceCanvas, seqText, assetInfo) {
   outCanvas.height = sourceCanvas.height;
   const ctx = outCanvas.getContext('2d');
   ctx.drawImage(sourceCanvas, 0, 0);
-  if (!hasLoadedAssets() || !assetInfo) return outCanvas;
+  if (!AssetEngine.hasLoaded() || !assetInfo) return outCanvas;
 
   const parts = [`التسلسل: ${seqText}`];
   if (assetInfo.code) parts.push(`كود الأصل: ${assetInfo.code}`);
-  if (watermarkShowName && assetInfo.name) parts.push(assetInfo.name);
+  if (AssetEngine.showNameInWatermark && assetInfo.name) parts.push(assetInfo.name);
   const watermarkText = parts.join('   |   ');
 
   const baseDimension = Math.min(outCanvas.width, outCanvas.height);
@@ -483,7 +426,7 @@ document.querySelectorAll('.suffix-chip').forEach(btn => {
   btn.addEventListener('click', () => {
     const suffix = btn.getAttribute('data-suffix');
     let currentVal = fileNameInput.value.trim();
-    for (const s of knownSuffixes) {
+    for (const s of KNOWN_SUFFIXES) {
       if (currentVal.endsWith(s)) {
         currentVal = currentVal.slice(0, -s.length);
         break;
@@ -591,7 +534,7 @@ captureBtn.addEventListener('click', () => {
   video.style.display = 'none';
 
   editingIndex = null;
-  modalTitleText.textContent = hasLoadedAssets() ? 'أدخل رقم التسلسل للصورة:' : 'أدخل رقم أو اسم الصورة:';
+  modalTitleText.textContent = AssetEngine.hasLoaded() ? 'أدخل رقم التسلسل للصورة:' : 'أدخل رقم أو اسم الصورة:';
   submitSaveBtn.textContent = 'حفظ';
   fileNameInput.value = '';
   assetMatchBox.style.display = 'none';
@@ -694,7 +637,7 @@ async function finalizeSave(finalFileName, replaceIndex) {
         assetSequence: cleanSeq,
         assetCode: matchedAsset ? matchedAsset.code : '',
         assetName: matchedAsset ? matchedAsset.name : '',
-        watermarkApplied: !!(hasLoadedAssets() && matchedAsset),
+        watermarkApplied: !!(AssetEngine.hasLoaded() && matchedAsset),
         qualityLevel: qSetting.label,
         createdAt: item.createdAt || now,
         updatedAt: now
@@ -738,7 +681,7 @@ async function finalizeSave(finalFileName, replaceIndex) {
         assetSequence: cleanSeq,
         assetCode: matchedAsset ? matchedAsset.code : '',
         assetName: matchedAsset ? matchedAsset.name : '',
-        watermarkApplied: !!(hasLoadedAssets() && matchedAsset),
+        watermarkApplied: !!(AssetEngine.hasLoaded() && matchedAsset),
         qualityLevel: qSetting.label,
         createdAt: oldItem.createdAt || now,
         updatedAt: now
@@ -762,7 +705,7 @@ async function finalizeSave(finalFileName, replaceIndex) {
         assetSequence: cleanSeq,
         assetCode: matchedAsset ? matchedAsset.code : '',
         assetName: matchedAsset ? matchedAsset.name : '',
-        watermarkApplied: !!(hasLoadedAssets() && matchedAsset),
+        watermarkApplied: !!(AssetEngine.hasLoaded() && matchedAsset),
         qualityLevel: qSetting.label,
         createdAt: now,
         updatedAt: now

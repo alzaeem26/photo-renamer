@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = 'alzaeem-pwa-v1.0.2';
+﻿const CACHE_NAME = 'alzaeem-pwa-v1.0.3';
 const APP_SHELL = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ const APP_SHELL = [
   './js/app.js',
   './js/storage.js',
   './js/image-engine.js',
+  './js/assets.js',
   './libraries/jszip.min.js',
   './libraries/xlsx.full.min.js',
   './icons/icon-192.png',
