@@ -1,4 +1,5 @@
 ﻿import { StorageEngine } from './storage.js';
+import { ImageEngine } from './image-engine.js';
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').then((reg) => {
@@ -101,11 +102,7 @@ let pendingSelectedFileName = '';
 let parsedRawRows = [];
 let watermarkShowName = false;
 
-const qualityLevels = [
-  { label: 'قصوى', reqW: 4096, reqH: 3072, maxDim: 0, q: 0.92 },
-  { label: 'عالية', reqW: 1920, reqH: 1080, maxDim: 1920, q: 0.85 },
-  { label: 'متوسطة', reqW: 1280, reqH: 720, maxDim: 1280, q: 0.80 }
-];
+const qualityLevels = ImageEngine.qualityLevels;
 let currentQualityIdx = 0;
 
 qualityBtn.addEventListener('click', () => {
@@ -353,38 +350,21 @@ function renderPhotoWithWatermark(sourceCanvas, seqText, assetInfo) {
   return outCanvas;
 }
 
-function blobToCanvas(blob) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(blob);
-    const img = new Image();
-    img.onload = () => {
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = img.naturalWidth;
-      tempCanvas.height = img.naturalHeight;
-      tempCanvas.getContext('2d').drawImage(img, 0, 0);
-      URL.revokeObjectURL(url);
-      resolve(tempCanvas);
-    };
-    img.onerror = (err) => {
-      URL.revokeObjectURL(url);
-      reject(err);
-    };
-    img.src = url;
-  });
-}
-
 async function loadPhotosFromDB() {
   const records = (await StorageEngine.getAllPhotos()) || [];
   sessionPhotos = records
     .filter(r => r && (r.finalBlob || r.blob) && (r.finalBlob || r.blob).size > 0)
     .map(r => {
       const activeBlob = r.finalBlob || r.blob;
+      const thumbBlob = r.thumbnailBlob || activeBlob;
       return {
         ...r,
         blob: activeBlob,
         finalBlob: activeBlob,
         rawBlob: r.rawBlob || activeBlob,
-        dataUrl: URL.createObjectURL(activeBlob)
+        thumbnailBlob: thumbBlob,
+        dataUrl: URL.createObjectURL(activeBlob),
+        thumbUrl: URL.createObjectURL(thumbBlob)
       };
     });
   updateHistoryUI();
@@ -467,7 +447,8 @@ window.deleteSinglePhoto = async function(index) {
   if (confirm(`حذف الصورة ${photo.name}؟`)) {
     try {
       await StorageEngine.deletePhoto(photo.id);
-      URL.revokeObjectURL(photo.dataUrl);
+      ImageEngine.revokeUrl(photo.dataUrl);
+      ImageEngine.revokeUrl(photo.thumbUrl);
       sessionPhotos.splice(index, 1);
       updateHistoryUI();
     } catch (err) {
@@ -602,21 +583,7 @@ switchCamBtn.addEventListener('click', () => {
 captureBtn.addEventListener('click', () => {
   if (!video.videoWidth || renameModal.style.display === 'flex') return;
   const qSetting = qualityLevels[currentQualityIdx];
-  let w = video.videoWidth;
-  let h = video.videoHeight;
-  if (qSetting.maxDim > 0 && Math.max(w, h) > qSetting.maxDim) {
-    const ratio = qSetting.maxDim / Math.max(w, h);
-    w = Math.round(w * ratio);
-    h = Math.round(h * ratio);
-  }
-  canvas.width = w;
-  canvas.height = h;
-  canvas.getContext('2d').drawImage(video, 0, 0, w, h);
-
-  const isolatedRaw = document.createElement('canvas');
-  isolatedRaw.width = w;
-  isolatedRaw.height = h;
-  isolatedRaw.getContext('2d').drawImage(canvas, 0, 0);
+  const isolatedRaw = ImageEngine.captureVideoFrame(video, canvas, qSetting);
   rawCapturedCanvas = isolatedRaw;
 
   previewImg.src = isolatedRaw.toDataURL('image/jpeg', qSetting.q);
@@ -712,10 +679,10 @@ async function finalizeSave(finalFileName, replaceIndex) {
     const item = sessionPhotos[editingIndex];
     try {
       const sourceRawBlob = item.rawBlob || item.blob;
-      const baseCanvas = await blobToCanvas(sourceRawBlob);
+      const baseCanvas = await ImageEngine.blobToCanvas(sourceRawBlob);
       const reRenderedCanvas = renderPhotoWithWatermark(baseCanvas, cleanSeq, matchedAsset);
-      const updatedDataUrl = reRenderedCanvas.toDataURL('image/jpeg', qSetting.q);
-      const updatedBlob = await new Promise(res => reRenderedCanvas.toBlob(res, 'image/jpeg', qSetting.q));
+      const updatedBlob = await ImageEngine.canvasToBlob(reRenderedCanvas, qSetting.q);
+      const updatedThumbBlob = await ImageEngine.createThumbnail(reRenderedCanvas);
 
       const updatedRecord = {
         id: item.id,
@@ -723,6 +690,7 @@ async function finalizeSave(finalFileName, replaceIndex) {
         subInfo: subInfoText,
         rawBlob: sourceRawBlob,
         finalBlob: updatedBlob,
+        thumbnailBlob: updatedThumbBlob,
         assetSequence: cleanSeq,
         assetCode: matchedAsset ? matchedAsset.code : '',
         assetName: matchedAsset ? matchedAsset.name : '',
@@ -733,8 +701,14 @@ async function finalizeSave(finalFileName, replaceIndex) {
       };
 
       await StorageEngine.updatePhoto(updatedRecord);
-      URL.revokeObjectURL(item.dataUrl);
-      sessionPhotos[editingIndex] = { ...updatedRecord, blob: updatedBlob, dataUrl: updatedDataUrl };
+      ImageEngine.revokeUrl(item.dataUrl);
+      ImageEngine.revokeUrl(item.thumbUrl);
+      sessionPhotos[editingIndex] = {
+        ...updatedRecord,
+        blob: updatedBlob,
+        dataUrl: URL.createObjectURL(updatedBlob),
+        thumbUrl: URL.createObjectURL(updatedThumbBlob)
+      };
       updateHistoryUI();
       showToast(matchedAsset ? `✓ تم التعديل وتحديث العلامة: ${finalFileName}` : `✓ تم التعديل إلى: ${finalFileName}`);
       resetToCamera();
@@ -747,10 +721,10 @@ async function finalizeSave(finalFileName, replaceIndex) {
   if (!rawCapturedCanvas) return;
 
   try {
-    const rawBlob = await new Promise(res => rawCapturedCanvas.toBlob(res, 'image/jpeg', qSetting.q));
+    const rawBlob = await ImageEngine.canvasToBlob(rawCapturedCanvas, qSetting.q);
     const finalCanvas = renderPhotoWithWatermark(rawCapturedCanvas, cleanSeq, matchedAsset);
-    const finalDataUrl = finalCanvas.toDataURL('image/jpeg', qSetting.q);
-    const finalBlob = await new Promise(res => finalCanvas.toBlob(res, 'image/jpeg', qSetting.q));
+    const finalBlob = await ImageEngine.canvasToBlob(finalCanvas, qSetting.q);
+    const thumbBlob = await ImageEngine.createThumbnail(finalCanvas);
 
     if (replaceIndex !== -1) {
       const oldItem = sessionPhotos[replaceIndex];
@@ -760,6 +734,7 @@ async function finalizeSave(finalFileName, replaceIndex) {
         subInfo: subInfoText,
         rawBlob: rawBlob,
         finalBlob: finalBlob,
+        thumbnailBlob: thumbBlob,
         assetSequence: cleanSeq,
         assetCode: matchedAsset ? matchedAsset.code : '',
         assetName: matchedAsset ? matchedAsset.name : '',
@@ -769,14 +744,21 @@ async function finalizeSave(finalFileName, replaceIndex) {
         updatedAt: now
       };
       await StorageEngine.updatePhoto(replacedRecord);
-      URL.revokeObjectURL(oldItem.dataUrl);
-      sessionPhotos[replaceIndex] = { ...replacedRecord, blob: finalBlob, dataUrl: finalDataUrl };
+      ImageEngine.revokeUrl(oldItem.dataUrl);
+      ImageEngine.revokeUrl(oldItem.thumbUrl);
+      sessionPhotos[replaceIndex] = {
+        ...replacedRecord,
+        blob: finalBlob,
+        dataUrl: URL.createObjectURL(finalBlob),
+        thumbUrl: URL.createObjectURL(thumbBlob)
+      };
     } else {
       const newRecord = {
         name: finalFileName,
         subInfo: subInfoText,
         rawBlob: rawBlob,
         finalBlob: finalBlob,
+        thumbnailBlob: thumbBlob,
         assetSequence: cleanSeq,
         assetCode: matchedAsset ? matchedAsset.code : '',
         assetName: matchedAsset ? matchedAsset.name : '',
@@ -786,7 +768,13 @@ async function finalizeSave(finalFileName, replaceIndex) {
         updatedAt: now
       };
       const newId = await StorageEngine.addPhoto(newRecord);
-      sessionPhotos.push({ ...newRecord, id: newId, blob: finalBlob, dataUrl: finalDataUrl });
+      sessionPhotos.push({
+        ...newRecord,
+        id: newId,
+        blob: finalBlob,
+        dataUrl: URL.createObjectURL(finalBlob),
+        thumbUrl: URL.createObjectURL(thumbBlob)
+      });
     }
 
     updateHistoryUI();
@@ -874,7 +862,10 @@ clearSessionBtn.addEventListener('click', async () => {
   if (confirm('هل تريد مسح جميع الصور المحفوظة في هذه الجلسة؟')) {
     try {
       await StorageEngine.clearPhotos();
-      sessionPhotos.forEach(p => URL.revokeObjectURL(p.dataUrl));
+      sessionPhotos.forEach(p => {
+        ImageEngine.revokeUrl(p.dataUrl);
+        ImageEngine.revokeUrl(p.thumbUrl);
+      });
       sessionPhotos = [];
       updateHistoryUI();
       closeDrawer();
@@ -902,7 +893,7 @@ function updateHistoryUI() {
   drawerList.innerHTML = allReversed.map(item => `
     <div class="drawer-photo-card">
       <div class="drawer-card-left" onclick="openPhotoViewer(${item.originalIndex})">
-        <img class="drawer-thumb" src="${item.dataUrl}" alt="${item.name}">
+        <img class="drawer-thumb" src="${item.thumbUrl || item.dataUrl}" alt="${item.name}">
         <div class="drawer-photo-info">
           <span class="drawer-photo-name">${item.name}</span>
           ${item.subInfo ? `<span class="drawer-photo-sub">${item.subInfo}</span>` : ''}

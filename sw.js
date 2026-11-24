@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = 'alzaeem-pwa-v1.1.0';
+﻿const CACHE_NAME = 'alzaeem-pwa-v1.0.2';
 const APP_SHELL = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const APP_SHELL = [
   './css/components.css',
   './js/app.js',
   './js/storage.js',
+  './js/image-engine.js',
   './libraries/jszip.min.js',
   './libraries/xlsx.full.min.js',
   './icons/icon-192.png',
@@ -48,4 +49,3 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
-
