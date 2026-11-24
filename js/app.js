@@ -37,7 +37,6 @@ if ('serviceWorker' in navigator) {
     });
   }).catch(() => {});
 }
-}
 
 const cameraContainer = document.getElementById('cameraContainer');
 const video = document.getElementById('video');
