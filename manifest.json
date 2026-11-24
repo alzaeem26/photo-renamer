@@ -1,17 +1,26 @@
-{
+﻿{
   "name": "كاميرا الزعيم للتصوير",
   "short_name": "كاميرا الزعيم",
-  "description": "التقاط الصور وتسميتها الفورية وتجميعها",
+  "description": "تطبيق جرد وتصوير الأصول الميداني - يعمل دون إنترنت",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f172a",
+  "background_color": "#060b14",
   "theme_color": "#0f172a",
+  "dir": "rtl",
+  "lang": "ar",
   "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='110' fill='%230f172a'/><circle cx='256' cy='268' r='115' fill='none' stroke='%2338bdf8' stroke-width='32'/><circle cx='256' cy='268' r='55' fill='%2338bdf8'/><rect x='176' y='100' width='160' height='36' rx='18' fill='%2310b981'/></svg>",
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]

@@ -1,17 +1,21 @@
-const CACHE_NAME = 'alzaeem-cam-v9';
-const ASSETS = [
+﻿const CACHE_NAME = 'alzaeem-pwa-v1.0.0';
+const APP_SHELL = [
   './',
   './index.html',
   './manifest.json',
-  'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+  './css/app.css',
+  './css/components.css',
+  './js/app.js',
+  './libraries/jszip.min.js',
+  './libraries/xlsx.full.min.js',
+  './icons/icon-192.png',
+  './icons/icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -23,15 +27,23 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// جلب النسخة الأحدث من الشبكة أولاً، والرجوع للكاش فقط عند انقطاع الإنترنت
 self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        const resClone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
+    caches.match(event.request).then((cached) => {
+      return cached || fetch(event.request).then((response) => {
+        if (response && response.status === 200 && response.type === 'basic') {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
         return response;
-      })
-      .catch(() => caches.match(event.request))
+      });
+    }).catch(() => caches.match('./index.html'))
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
