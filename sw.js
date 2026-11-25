@@ -5,7 +5,7 @@ const APP_SHELL = [
   './manifest.json',
   './css/app.css',
   './css/components.css',
-  './js/app.js',
+  './js/app.js?v=1.2.6',
   './js/storage.js',
   './js/image-engine.js',
   './js/assets.js',
