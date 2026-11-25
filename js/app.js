@@ -918,22 +918,22 @@ function updateHistoryUI() {
   drawerList.innerHTML = sessionPhotos.map((item, idx) => {
     const cleanName = escapeHtml(String(item.name || '').replace(/\.jpe?g$/i, ''));
     const isChecked = window.selectedPhotoIds && window.selectedPhotoIds.has(item.id) ? 'checked' : '';
-    const folderBadge = item.folderExported
-      ? '<span style="color:#34d399; font-size:11px;">✓ بالمجلد</span>'
-      : '<span style="color:#fbbf24; font-size:11px;">⚠️ بالتطبيق فقط</span>';
+    const statusBadge = item.folderExported
+      ? '<span style="color:#34d399; font-size:11px; font-weight:600;">✓ بالمجلد</span>'
+      : '<span style="color:#fbbf24; font-size:11px; font-weight:600;">⚠️ بالتطبيق</span>';
     return `
-      <div class="drawer-item" style="display:flex; align-items:center; gap:8px; padding:8px; border-bottom:1px solid rgba(255,255,255,0.08);">
-        <input type="checkbox" ${isChecked} onchange="togglePhotoSelection(${item.id}, this.checked)" style="width:18px; height:18px; accent-color:#38bdf8;" />
-        <img src="${item.thumbUrl}" onclick="openPhotoViewer(${idx})" style="width:46px; height:46px; object-fit:cover; border-radius:6px; cursor:pointer;" />
-        <div style="flex:1; min-width:0; cursor:pointer;" onclick="openPhotoViewer(${idx})">
-          <div style="font-weight:600; font-size:13px; color:#f8fafc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${cleanName}</div>
-          ${item.subInfo ? `<div style="font-size:11px; color:#7dd3fc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(item.subInfo)}</div>` : ''}
-          <div>${folderBadge}</div>
+      <div class="drawer-item" style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" ${isChecked} onchange="togglePhotoSelection(${item.id}, this.checked)" style="width:18px; height:18px; flex-shrink:0; accent-color:#38bdf8; cursor:pointer;" />
+        <img src="${item.thumbUrl}" class="drawer-thumb" onclick="openPhotoViewer(${idx})" alt="${cleanName}" />
+        <div class="drawer-item-info" onclick="openPhotoViewer(${idx})" style="flex:1; min-width:0; cursor:pointer;">
+          <div class="drawer-item-name" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${cleanName}</div>
+          ${item.subInfo ? `<div class="drawer-item-sub" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(item.subInfo)}</div>` : ''}
+          <div>${statusBadge}</div>
         </div>
-        <div style="display:flex; gap:4px;">
-          <button type="button" onclick="editExistingPhotoName(${idx})" class="secondary-btn" style="padding:5px 7px; font-size:12px;" title="تعديل الاسم">✏️</button>
-          <button type="button" onclick="shareSinglePhoto(${idx})" class="secondary-btn" style="padding:5px 7px; font-size:12px;" title="مشاركة">📤</button>
-          <button type="button" onclick="deleteSinglePhoto(${idx})" class="secondary-btn" style="padding:5px 7px; font-size:12px; color:#f87171;" title="حذف">🗑️</button>
+        <div class="drawer-actions" style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+          <button type="button" class="drawer-action-btn" onclick="editExistingPhotoName(${idx})" title="تعديل الاسم" style="width:32px; height:32px; padding:0;">✏️</button>
+          <button type="button" class="drawer-action-btn" onclick="shareSinglePhoto(${idx})" title="مشاركة / حفظ" style="width:32px; height:32px; padding:0;">📤</button>
+          <button type="button" class="drawer-action-btn danger" onclick="deleteSinglePhoto(${idx})" title="حذف" style="width:32px; height:32px; padding:0;">🗑️</button>
         </div>
       </div>`;
   }).reverse().join('');
