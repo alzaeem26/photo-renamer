@@ -12,8 +12,8 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <title>كاميرا الزعيم للتصوير</title>
-  <link rel="stylesheet" href="./css/app.css?v=1.3.7">
-  <link rel="stylesheet" href="./css/components.css?v=1.3.7">
+  <link rel="stylesheet" href="./css/app.css?v=1.3.8">
+  <link rel="stylesheet" href="./css/components.css?v=1.3.8">
   <script src="./libraries/jszip.min.js"></script>
   <script src="./libraries/xlsx.full.min.js"></script>
 </head>
@@ -67,7 +67,7 @@
   </div>
 
   <div class="side-drawer-overlay" id="drawerOverlay"></div>
-  <aside class="side-drawer" id="sideDrawer">
+  <aside class="side-drawer" id="sideDrawer" style="display:flex; flex-direction:column; height:100dvh; max-height:100dvh; overflow:hidden;">
     <div class="drawer-header">
       <span>الصور المحفوظة (<span id="drawerTotalCount">0</span>)</span>
       <button class="drawer-close" id="closeDrawerBtn">✕</button>
@@ -86,11 +86,11 @@
         <button type="button" id="openBatchRenameBtn" class="btn-save" style="flex:1; padding:7px 6px; font-size:11px; background:rgba(56,189,248,0.3); border:1px solid rgba(56,189,248,0.55);">🏷️ إعادة تسمية المحدد</button>
       </div>
     </div>
-    <div class="drawer-list" id="drawerList">
+    <div class="drawer-list" id="drawerList" style="flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; touch-action:pan-y; overscroll-behavior:contain;">
       <p style="color:#94a3b8; font-size:13px; text-align:center; margin-top:20px;">لم يتم التقاط صور بعد</p>
         </div>
     <div style="padding:10px; border-top:1px solid rgba(255,255,255,0.15); display:flex; flex-direction:column; gap:6px; background:rgba(255,255,255,0.04);">
-      <div id="appVersionLabel" style="text-align:center; font-size:11px; color:rgba(255,255,255,0.5); margin-bottom:2px;">الإصدار v1.3.7</div>
+      <div id="appVersionLabel" style="text-align:center; font-size:11px; color:rgba(255,255,255,0.5); margin-bottom:2px;">الإصدار v1.3.8</div>
       <button type="button" id="backupMenuToggleBtn" class="secondary-btn" style="width:100%; padding:7px 10px; font-size:12px;">⚙️ النسخ الاحتياطي والاستعادة</button>
       <div id="backupActionsWrap" style="display:none; flex-direction:column; gap:6px; margin-top:2px;">
         <button type="button" id="backupExportBtn" class="btn-save" style="padding:9px; font-size:12px;">💾 تصدير نسخة احتياطية كاملة</button>
@@ -196,7 +196,7 @@
     </div>
   </div>
 
-  <script type="module" src="./js/app.js?v=1.3.7"></script>
+  <script type="module" src="./js/app.js?v=1.3.8"></script>
   <div id="updateBanner" style="display:none; position:fixed; top:56px; left:12px; right:12px; z-index:70; background:rgba(15,23,42,0.88); backdrop-filter:blur(16px); border:1px solid rgba(56,189,248,0.6); border-radius:14px; padding:12px; box-shadow:0 10px 30px rgba(0,0,0,0.5); flex-direction:column; gap:8px;">
     <div style="font-size:13px; font-weight:600; color:#f8fafc;">🚀 يتوفر تحديث جديد لكاميرا الزعيم</div>
     <div style="font-size:11px; color:#cbd5e1;">تم تنزيل الإصدار الجديد في الخلفية. يمكنك التحديث الآن أو المتابعة حتى تنتهي من التصوير.</div>
