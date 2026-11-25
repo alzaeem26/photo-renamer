@@ -1184,6 +1184,12 @@ async function executeAppendToFolder(targetPhotos) {
   operationReportList.innerHTML = reportLines.join('');
   if (lastFailedAppendIds.length > 0) {
     retryFailedAppendBtn.style.display = 'inline-block';
+    const idsJson = JSON.stringify(lastFailedAppendIds);
+    operationReportList.innerHTML += `
+      <div style="margin-top:8px; padding:10px; border-radius:8px; background:rgba(56,189,248,0.14); border:1px solid rgba(56,189,248,0.45);">
+        <div style="color:#7dd3fc; font-size:12px; margin-bottom:6px;">📱 <b>ملاحظة للموبايل:</b> متصفحات الهاتف تمنع الكتابة المباشرة في مجلدات النظام. استخدم الزر التالي لحفظ الصور دفعة واحدة عبر الهاتف بأسمائها:</div>
+        <button type="button" onclick='shareOrDownloadBatchPhotos(${idsJson})' class="btn-save" style="width:100%; padding:9px; font-size:12px; background:rgba(16,185,129,0.4); border:1px solid #34d399;">📤 حفظ / مشاركة الصور (${lastFailedAppendIds.length}) عبر الهاتف</button>
+      </div>`;
   }
 }
 
@@ -1423,19 +1429,22 @@ confirmBatchRenameBtn?.addEventListener('click', async () => {
     try {
       // إذا كانت الصورة مصدّرة للمجلد، نحدّث اسم ملفها في المجلد مع حماية الملفات الموجودة
       if (photo.folderExported) {
-        const dir = await ensureDirectoryAccess();
-        if (await fileExistsInDirectory(dir, newName)) {
-          throw new Error(`يوجد ملف باسم (${newName}) مسبقاً في المجلد`);
-        }
-        const blobToWrite = photo.finalBlob || photo.blob;
-        const newHandle = await dir.getFileHandle(newName, { create: true });
-        const writable = await newHandle.createWritable();
-        await writable.write(blobToWrite);
-        await writable.close();
-
         try {
-          await dir.removeEntry(oldName);
-        } catch (delErr) {}
+          const dir = await ensureDirectoryAccess();
+          if (await fileExistsInDirectory(dir, newName)) {
+            throw new Error(`يوجد ملف باسم (${newName}) مسبقاً في المجلد`);
+          }
+          const blobToWrite = photo.finalBlob || photo.blob;
+          const newHandle = await dir.getFileHandle(newName, { create: true });
+          const writable = await newHandle.createWritable();
+          await writable.write(blobToWrite);
+          await writable.close();
+          try { await dir.removeEntry(oldName); } catch (delErr) {}
+        } catch (dirErr) {
+          if (String(dirErr.message || '').includes('مسبقاً في المجلد')) throw dirErr;
+          // على الموبايل: نحدّث الاسم داخل التطبيق ونعيد الحالة إلى غير مصدّرة ليتمكن من تصديرها بالاسم الجديد
+          photo.folderExported = false;
+        }
       }
 
       // تحديث اسم الملف فقط في التطبيق و IndexedDB دون المساس بالصورة أو العلامة المائية
@@ -1485,3 +1494,87 @@ confirmBatchRenameBtn?.addEventListener('click', async () => {
 
 
 
+
+// ============================================================================
+// 3. دعم الحفظ والمشاركة الدفعية للموبايل عند قيود المجلدات في أندرويد
+// ============================================================================
+window.shareOrDownloadBatchPhotos = async function(photoIds) {
+  const targets = sessionPhotos.filter(p => photoIds.includes(p.id));
+  if (targets.length === 0) return;
+
+  try {
+    const files = targets.map(p => new File([p.finalBlob || p.blob], p.name, { type: 'image/jpeg' }));
+    if (navigator.canShare && navigator.canShare({ files })) {
+      await navigator.share({
+        files,
+        title: `صور الجرد (${files.length})`,
+        text: `تصدير ${files.length} صورة من كاميرا الزعيم`
+      });
+
+      for (const p of targets) {
+        p.folderExported = true;
+        await StorageEngine.updatePhoto({
+          id: p.id,
+          name: p.name,
+          subInfo: p.subInfo || '',
+          rawBlob: p.rawBlob || p.blob,
+          finalBlob: p.finalBlob || p.blob,
+          thumbnailBlob: p.thumbnailBlob || null,
+          assetSequence: p.assetSequence || '',
+          assetCode: p.assetCode || '',
+          assetName: p.assetName || '',
+          watermarkApplied: !!p.watermarkApplied,
+          qualityLevel: p.qualityLevel || '',
+          folderExported: true,
+          createdAt: p.createdAt || Date.now(),
+          updatedAt: Date.now()
+        });
+      }
+      updateHistoryUI();
+      closeAppendModal();
+      showToast(`✓ تمت مشاركة/حفظ ${targets.length} صورة بنجاح`);
+      return;
+    }
+  } catch (err) {
+    if (err.name === 'AbortError') return;
+  }
+
+  // بديل التنزيل كـ ZIP للصور المحددة إذا لم يدعم المتصفح مشاركة الملفات المتعددة
+  const zip = new JSZip();
+  for (const p of targets) {
+    const blob = p.finalBlob || p.blob;
+    if (blob) zip.file(p.name, await blob.arrayBuffer(), { binary: true });
+  }
+  const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+  const url = URL.createObjectURL(zipBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Alzaeem_Batch_${new Date().toISOString().slice(0, 10)}.zip`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 15000);
+
+  for (const p of targets) {
+    p.folderExported = true;
+    await StorageEngine.updatePhoto({
+      id: p.id,
+      name: p.name,
+      subInfo: p.subInfo || '',
+      rawBlob: p.rawBlob || p.blob,
+      finalBlob: p.finalBlob || p.blob,
+      thumbnailBlob: p.thumbnailBlob || null,
+      assetSequence: p.assetSequence || '',
+      assetCode: p.assetCode || '',
+      assetName: p.assetName || '',
+      watermarkApplied: !!p.watermarkApplied,
+      qualityLevel: p.qualityLevel || '',
+      folderExported: true,
+      createdAt: p.createdAt || Date.now(),
+      updatedAt: Date.now()
+    });
+  }
+  updateHistoryUI();
+  closeAppendModal();
+  showToast(`✓ تم تنزيل ${targets.length} صورة في ملف ZIP`);
+};
