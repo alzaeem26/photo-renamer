@@ -832,8 +832,12 @@ async function finalizeSave(finalFileName, replaceIndex, dirPermPromise = null) 
           showToast(`✓ حُفظت داخل التطبيق والمجلد: ${finalFileName}`);
         }
       } catch (err) {
-        const reason = err && err.message ? err.message : 'يرجى اختيار مجلد فرعي داخل المستندات/الصور';
-        showToast(`⚠️ حُفظت بالتطبيق فقط (${reason})`);
+        const isAndroidBlock = String(err && err.message || '').includes('not allowed by the user agent');
+        if (isAndroidBlock) {
+          showToast(`✓ حُفظت بالتطبيق: ${finalFileName} (استخدم ZIP للحفظ بذاكرة الهاتف)`);
+        } else {
+          showToast(`✓ حُفظت بالتطبيق فقط: ${finalFileName}`);
+        }
       }
     } else {
       showToast(`✓ حُفظت داخل التطبيق: ${finalFileName}`);
@@ -1155,7 +1159,11 @@ async function executeAppendToFolder(targetPhotos) {
       reportLines.push(`<div style="color:#34d399;">✓ <b>${escapeHtml(photo.name)}</b>: نجحت الكتابة في المجلد</div>`);
     } catch (err) {
       lastFailedAppendIds.push(photo.id);
-      reportLines.push(`<div style="color:#f87171;">✕ <b>${escapeHtml(photo.name)}</b>: فشل الحفظ (${escapeHtml(err.message || 'خطأ وصول')}) — بقيت محفوظة في التطبيق</div>`);
+      const isAndroidBlock = String(err.message || '').includes('not allowed by the user agent');
+      const friendlyErr = isAndroidBlock
+        ? 'نظام أندرويد يحظر الكتابة المباشرة للمجلدات من المتصفح'
+        : escapeHtml(err.message || 'خطأ وصول');
+      reportLines.push(`<div style="color:#f87171;">✕ <b>${escapeHtml(photo.name)}</b>: ${friendlyErr}</div>`);
     }
   }
 
