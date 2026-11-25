@@ -1,4 +1,4 @@
-﻿.side-drawer-overlay {
+.side-drawer-overlay {
   position: fixed;
   inset: 0;
   background: rgba(6, 11, 20, 0.5);
@@ -394,3 +394,36 @@ select option { background: #0f172a; color: #fff; }
   padding: 4px 0;
 }
 .checkbox-row input { width: 18px; height: 18px; accent-color: #10b981; }
+
+
+/* === Fix Side Drawer Vertical Touch Scrolling (v1.3.9) === */
+.side-drawer {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+  touch-action: pan-y !important;
+}
+
+.drawer-header,
+#drawerBulkToolbar {
+  flex: 0 0 auto !important;
+}
+
+.drawer-list {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
+  overscroll-behavior-y: contain !important;
+}
+
+.drawer-list * {
+  touch-action: pan-y !important;
+}
