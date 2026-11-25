@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = 'alzaeem-pwa-v1.2.2-dev';
+const CACHE_NAME = 'alzaeem-pwa-v1.2.3';
 const APP_SHELL = [
   './',
   './index.html',
@@ -17,6 +17,7 @@ const APP_SHELL = [
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
   );
@@ -30,9 +31,8 @@ self.addEventListener('activate', (event) => {
           .filter((k) => k.startsWith('alzaeem-pwa-') && k !== CACHE_NAME)
           .map((k) => caches.delete(k))
       )
-    )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
@@ -63,5 +63,3 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
-
-

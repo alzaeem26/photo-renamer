@@ -1,4 +1,4 @@
-﻿import { StorageEngine } from './storage.js';
+import { StorageEngine } from './storage.js';
 import { ImageEngine } from './image-engine.js';
 import { AssetEngine, KNOWN_SUFFIXES } from './assets.js';
 import { BackupEngine } from './backup.js';
@@ -12,14 +12,18 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+let isStartingCamera = false;
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && typeof video !== 'undefined' && video && video.srcObject) {
     try {
       video.srcObject.getTracks().forEach(t => t.stop());
       video.srcObject = null;
     } catch (e) {}
-  } else if (!document.hidden && typeof startCamera === 'function' && (!video || !video.srcObject)) {
-    try { startCamera(); } catch (e) {}
+  } else if (!document.hidden && typeof startCamera === 'function' && !isStartingCamera && (!video || !video.srcObject || !video.srcObject.active)) {
+    isStartingCamera = true;
+    Promise.resolve().then(() => startCamera()).finally(() => {
+      setTimeout(() => { isStartingCamera = false; }, 1000);
+    });
   }
 });
 
