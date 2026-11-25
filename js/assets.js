@@ -4,6 +4,7 @@ export const KNOWN_SUFFIXES = ['-1', '-2', '-3', '-أمام', '-خلف'];
 
 export const AssetEngine = {
   map: {},
+  headers: [],
   fileName: '',
   showNameInWatermark: false,
   parsedRows: [],
@@ -17,11 +18,21 @@ export const AssetEngine = {
     return Object.keys(this.map).length;
   },
 
+  getHeaders() {
+    if (this.headers && this.headers.length > 0) return this.headers;
+    const keys = Object.keys(this.map);
+    if (keys.length > 0 && this.map[keys[0]].row) {
+      return Object.keys(this.map[keys[0]].row);
+    }
+    return [];
+  },
+
   async loadFromDB() {
     try {
       const res = await StorageEngine.getRecord('settings', 'assetsData');
       if (res) {
         this.map = res.map || {};
+        this.headers = res.headers || [];
         this.fileName = res.fileName || 'ملف أصول محفوظ';
         this.showNameInWatermark = !!res.showName;
       }
@@ -33,6 +44,7 @@ export const AssetEngine = {
     await StorageEngine.putRecord('settings', {
       key: 'assetsData',
       map: this.map,
+      headers: this.headers,
       fileName: this.fileName,
       showName: this.showNameInWatermark
     });
@@ -40,6 +52,7 @@ export const AssetEngine = {
 
   async clear() {
     this.map = {};
+    this.headers = [];
     this.fileName = '';
     this.pendingFileName = '';
     this.parsedRows = [];
@@ -88,7 +101,8 @@ export const AssetEngine = {
 
       newMap[seqVal] = {
         name: String(row[nameCol] ?? '').trim(),
-        code: String(row[codeCol] ?? '').trim()
+        code: String(row[codeCol] ?? '').trim(),
+        row: { ...row }
       };
     }
 
@@ -97,6 +111,9 @@ export const AssetEngine = {
 
   commitMap(newMap, showName) {
     this.map = newMap;
+    if (this.parsedRows && this.parsedRows.length > 0) {
+      this.headers = Object.keys(this.parsedRows[0]);
+    }
     if (this.pendingFileName) {
       this.fileName = this.pendingFileName;
     }
@@ -107,18 +124,20 @@ export const AssetEngine = {
   lookup(rawText) {
     const clean = String(rawText || '').trim();
     if (!clean || !this.hasLoaded()) {
-      return { found: null, baseSeq: clean };
+      return { found: null, baseSeq: clean, suffix: '' };
     }
 
     let baseSeq = clean;
+    let matchedSuffix = '';
     for (const suffix of KNOWN_SUFFIXES) {
       if (baseSeq.endsWith(suffix)) {
         baseSeq = baseSeq.slice(0, -suffix.length).trim();
+        matchedSuffix = suffix;
         break;
       }
     }
 
     const found = this.map[clean] || this.map[baseSeq] || null;
-    return { found, baseSeq };
+    return { found, baseSeq, suffix: matchedSuffix };
   }
 };

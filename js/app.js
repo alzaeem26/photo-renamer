@@ -658,6 +658,7 @@ async function finalizeSave(finalFileName, replaceIndex) {
         assetName: matchedAsset ? matchedAsset.name : '',
         watermarkApplied: !!(AssetEngine.hasLoaded() && matchedAsset),
         qualityLevel: qSetting.label,
+        folderExported: false,
         createdAt: item.createdAt || now,
         updatedAt: now
       };
@@ -702,6 +703,7 @@ async function finalizeSave(finalFileName, replaceIndex) {
         assetName: matchedAsset ? matchedAsset.name : '',
         watermarkApplied: !!(AssetEngine.hasLoaded() && matchedAsset),
         qualityLevel: qSetting.label,
+        folderExported: false,
         createdAt: oldItem.createdAt || now,
         updatedAt: now
       };
@@ -726,6 +728,7 @@ async function finalizeSave(finalFileName, replaceIndex) {
         assetName: matchedAsset ? matchedAsset.name : '',
         watermarkApplied: !!(AssetEngine.hasLoaded() && matchedAsset),
         qualityLevel: qSetting.label,
+        folderExported: false,
         createdAt: now,
         updatedAt: now
       };
@@ -969,3 +972,442 @@ startCamera();
 
 
 
+
+// ============================================================================
+// 1. أدوات تحديد الصور وإلحاقها بالمجلد
+// ============================================================================
+window.selectedPhotoIds = new Set();
+let lastFailedAppendIds = [];
+
+window.togglePhotoSelection = function(photoId, checked) {
+  if (checked) window.selectedPhotoIds.add(photoId);
+  else window.selectedPhotoIds.delete(photoId);
+  updateHistoryUI();
+};
+
+const selectAllPhotosBtn = document.getElementById('selectAllPhotosBtn');
+const deselectAllPhotosBtn = document.getElementById('deselectAllPhotosBtn');
+if (selectAllPhotosBtn) {
+  selectAllPhotosBtn.addEventListener('click', () => {
+    sessionPhotos.forEach(p => window.selectedPhotoIds.add(p.id));
+    updateHistoryUI();
+  });
+}
+if (deselectAllPhotosBtn) {
+  deselectAllPhotosBtn.addEventListener('click', () => {
+    window.selectedPhotoIds.clear();
+    updateHistoryUI();
+  });
+}
+
+async function ensureDirectoryAccess() {
+  if (directoryHandle) {
+    try {
+      const perm = await directoryHandle.queryPermission({ mode: 'readwrite' });
+      if (perm === 'granted') return directoryHandle;
+      const req = await directoryHandle.requestPermission({ mode: 'readwrite' });
+      if (req === 'granted') return directoryHandle;
+    } catch (e) {}
+  }
+  if (!('showDirectoryPicker' in window)) {
+    throw new Error('هذا المتصفح لا يدعم الوصول المباشر للمجلدات. تبقى صورك محفوظة بأمان داخل التطبيق ويمكنك تنزيلها كـ ZIP.');
+  }
+  directoryHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+  folderLabel.textContent = directoryHandle.name;
+  pickFolderBtn.classList.add('btn-active-green');
+  return directoryHandle;
+}
+
+async function fileExistsInDirectory(dirHandle, fileName) {
+  try {
+    await dirHandle.getFileHandle(fileName, { create: false });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+const openAppendFolderBtn = document.getElementById('openAppendFolderBtn');
+const appendFolderModal = document.getElementById('appendFolderModal');
+const appendModalTitle = document.getElementById('appendModalTitle');
+const appendFolderInfo = document.getElementById('appendFolderInfo');
+const appendOptionsWrap = document.getElementById('appendOptionsWrap');
+const operationReportList = document.getElementById('operationReportList');
+const retryFailedAppendBtn = document.getElementById('retryFailedAppendBtn');
+
+function closeAppendModal() {
+  if (appendFolderModal) appendFolderModal.style.display = 'none';
+}
+document.getElementById('closeAppendModalBtn')?.addEventListener('click', closeAppendModal);
+document.getElementById('closeAppendFooterBtn')?.addEventListener('click', closeAppendModal);
+
+async function executeAppendToFolder(targetPhotos) {
+  if (!targetPhotos || targetPhotos.length === 0) {
+    alert('لا توجد صور مطابقة للإلحاق بالمجلد.');
+    return;
+  }
+
+  let dir;
+  try {
+    dir = await ensureDirectoryAccess();
+  } catch (err) {
+    alert(err.message || 'تعذّر الوصول إلى المجلد. تبقى جميع الصور محفوظة داخل التطبيق.');
+    return;
+  }
+
+  // فحص وجود ملفات بنفس الأسماء في المجلد قبل الكتابة
+  const existingFiles = [];
+  for (const p of targetPhotos) {
+    if (await fileExistsInDirectory(dir, p.name)) {
+      existingFiles.push(p.name);
+    }
+  }
+
+  let overwriteApproved = false;
+  if (existingFiles.length > 0) {
+    const previewNames = existingFiles.slice(0, 6).join('، ') + (existingFiles.length > 6 ? ` ... (+${existingFiles.length - 6})` : '');
+    overwriteApproved = confirm(
+      `⚠️ تنبيه: توجد ${existingFiles.length} ملفات بنفس الاسم داخل المجلد (${dir.name}):\n${previewNames}\n\n` +
+      `• اضغط [موافق] للكتابة فوق الملفات الموجودة.\n` +
+      `• اضغط [إلغاء] لتخطي الملفات الموجودة وحفظ الجديدة فقط.`
+    );
+  }
+
+  appendOptionsWrap.style.display = 'none';
+  operationReportList.style.display = 'flex';
+  operationReportList.innerHTML = '<div style="color:#7dd3fc;">⏳ جاري إلحاق الصور بالمجلد...</div>';
+  retryFailedAppendBtn.style.display = 'none';
+  lastFailedAppendIds = [];
+
+  const reportLines = [];
+  let successCount = 0;
+
+  for (const photo of targetPhotos) {
+    try {
+      const exists = existingFiles.includes(photo.name);
+      if (exists && !overwriteApproved) {
+        lastFailedAppendIds.push(photo.id);
+        reportLines.push(`<div style="color:#fbbf24;">⏭️ <b>${photo.name}</b>: تم التخطي (الملف موجود مسبقاً في المجلد)</div>`);
+        continue;
+      }
+
+      const blobToWrite = photo.finalBlob || photo.blob;
+      if (!blobToWrite) throw new Error('بيانات الصورة غير متوفرة');
+
+      const fileHandle = await dir.getFileHandle(photo.name, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(blobToWrite);
+      await writable.close();
+
+      photo.folderExported = true;
+      await StorageEngine.updatePhoto({
+        id: photo.id,
+        name: photo.name,
+        subInfo: photo.subInfo || '',
+        rawBlob: photo.rawBlob || blobToWrite,
+        finalBlob: blobToWrite,
+        thumbnailBlob: photo.thumbnailBlob || null,
+        assetSequence: photo.assetSequence || '',
+        assetCode: photo.assetCode || '',
+        assetName: photo.assetName || '',
+        watermarkApplied: !!photo.watermarkApplied,
+        qualityLevel: photo.qualityLevel || '',
+        folderExported: true,
+        createdAt: photo.createdAt || Date.now(),
+        updatedAt: Date.now()
+      });
+
+      successCount++;
+      reportLines.push(`<div style="color:#34d399;">✓ <b>${photo.name}</b>: نجح الحفظ في المجلد</div>`);
+    } catch (err) {
+      lastFailedAppendIds.push(photo.id);
+      reportLines.push(`<div style="color:#f87171;">✕ <b>${photo.name}</b>: فشل الحفظ (${err.message || 'خطأ وصول'}) — بقيت محفوظة في التطبيق</div>`);
+    }
+  }
+
+  updateHistoryUI();
+  appendFolderInfo.innerHTML = `المجلد: <b>${dir.name}</b> | نجح: <b style="color:#34d399;">${successCount}</b> | تعذّر/تخطي: <b style="color:#f87171;">${lastFailedAppendIds.length}</b>`;
+  operationReportList.innerHTML = reportLines.join('');
+  if (lastFailedAppendIds.length > 0) {
+    retryFailedAppendBtn.style.display = 'inline-block';
+  }
+}
+
+if (openAppendFolderBtn) {
+  openAppendFolderBtn.addEventListener('click', () => {
+    if (sessionPhotos.length === 0) return;
+    const unexported = sessionPhotos.filter(p => !p.folderExported);
+    const selected = sessionPhotos.filter(p => window.selectedPhotoIds.has(p.id));
+
+    appendModalTitle.textContent = '📂 إلحاق صور الجلسة بالمجلد';
+    appendFolderInfo.innerHTML =
+      `• المجلد الحالي: <b>${directoryHandle ? directoryHandle.name : 'لم يُحدد بعد (سيُطلب عند التنفيذ)'}</b><br>` +
+      `• صور غير مُصدّرة: <b>${unexported.length}</b> | صور محددة: <b>${selected.length}</b>`;
+
+    appendOptionsWrap.style.display = 'flex';
+    operationReportList.style.display = 'none';
+    retryFailedAppendBtn.style.display = 'none';
+
+    const allBtn = document.getElementById('appendAllUnexportedBtn');
+    const selBtn = document.getElementById('appendSelectedOnlyBtn');
+    allBtn.disabled = unexported.length === 0;
+    allBtn.textContent = `إلحاق جميع الصور غير المُصدّرة (${unexported.length})`;
+    selBtn.disabled = selected.length === 0;
+    selBtn.textContent = `إلحاق الصور المحددة فقط (${selected.length})`;
+
+    appendFolderModal.style.display = 'flex';
+  });
+}
+
+document.getElementById('appendAllUnexportedBtn')?.addEventListener('click', () => {
+  const unexported = sessionPhotos.filter(p => !p.folderExported);
+  executeAppendToFolder(unexported);
+});
+
+document.getElementById('appendSelectedOnlyBtn')?.addEventListener('click', () => {
+  const selected = sessionPhotos.filter(p => window.selectedPhotoIds.has(p.id));
+  executeAppendToFolder(selected);
+});
+
+retryFailedAppendBtn?.addEventListener('click', () => {
+  const retryList = sessionPhotos.filter(p => lastFailedAppendIds.includes(p.id));
+  executeAppendToFolder(retryList);
+});
+
+// ============================================================================
+// 2. إعادة تسمية المحدد دفعة واحدة من أي عمود متكيف في قاعدة البيانات
+// ============================================================================
+const openBatchRenameBtn = document.getElementById('openBatchRenameBtn');
+const batchRenameModal = document.getElementById('batchRenameModal');
+const batchColSelect = document.getElementById('batchColSelect');
+const batchKeepSuffixChk = document.getElementById('batchKeepSuffixChk');
+const batchSummaryBanner = document.getElementById('batchSummaryBanner');
+const batchPreviewList = document.getElementById('batchPreviewList');
+const confirmBatchRenameBtn = document.getElementById('confirmBatchRenameBtn');
+
+let currentBatchPlan = [];
+
+function sanitizeFileNamePart(val) {
+  return String(val || '')
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, ' ');
+}
+
+function buildBatchRenamePreview() {
+  const selectedCol = batchColSelect.value;
+  const keepSuffix = batchKeepSuffixChk.checked;
+  const selectedPhotos = sessionPhotos.filter(p => window.selectedPhotoIds.has(p.id));
+
+  currentBatchPlan = [];
+  const proposedTargets = new Map(); // lowercaseName -> count
+
+  // المرحلة 1: استخراج الاسم المقترح لكل صورة من سجلها المرتبط
+  const draftItems = selectedPhotos.map(photo => {
+    const rawLookupKey = photo.assetSequence || photo.name.replace(/\.jpg$/i, '');
+    const { found, suffix } = AssetEngine.lookup(rawLookupKey);
+
+    if (!found) {
+      return { photo, status: 'skip', reason: 'غير مرتبطة بسجل في قاعدة البيانات — ستبقى على اسمها', newName: photo.name };
+    }
+
+    const rowObj = found.row || {};
+    let colValue = '';
+    if (Object.prototype.hasOwnProperty.call(rowObj, selectedCol)) {
+      colValue = String(rowObj[selectedCol] ?? '').trim();
+    } else if (selectedCol === '__code__') {
+      colValue = String(found.code || '').trim();
+    } else if (selectedCol === '__name__') {
+      colValue = String(found.name || '').trim();
+    }
+
+    const cleanVal = sanitizeFileNamePart(colValue);
+    if (!cleanVal) {
+      return { photo, status: 'skip', reason: `لا تتوفر قيمة في عمود (${selectedCol}) — ستبقى على اسمها`, newName: photo.name };
+    }
+
+    const finalBase = (keepSuffix && suffix) ? `${cleanVal}${suffix}` : cleanVal;
+    const newName = `${finalBase}.jpg`;
+
+    if (newName.toLowerCase() === photo.name.toLowerCase()) {
+      return { photo, status: 'unchanged', reason: 'الاسم مطابق مسبقاً', newName: photo.name };
+    }
+
+    const key = newName.toLowerCase();
+    proposedTargets.set(key, (proposedTargets.get(key) || 0) + 1);
+    return { photo, status: 'candidate', newName };
+  });
+
+  // المرحلة 2: فحص التعارضات (تكرار داخل الدفعة أو تعارض مع صور أخرى في الجلسة)
+  const unselectedNames = new Set(
+    sessionPhotos
+      .filter(p => !window.selectedPhotoIds.has(p.id))
+      .map(p => p.name.toLowerCase())
+  );
+
+  let readyCount = 0;
+  let conflictCount = 0;
+  let skipCount = 0;
+
+  currentBatchPlan = draftItems.map(item => {
+    if (item.status !== 'candidate') {
+      skipCount++;
+      return item;
+    }
+    const key = item.newName.toLowerCase();
+    if ((proposedTargets.get(key) || 0) > 1) {
+      conflictCount++;
+      return { ...item, status: 'conflict', reason: `تعارض: الاسم (${item.newName}) مكرر بين الصور المحددة` };
+    }
+    if (unselectedNames.has(key)) {
+      conflictCount++;
+      return { ...item, status: 'conflict', reason: `تعارض: الاسم (${item.newName}) مستخدم لصورة أخرى في الجلسة` };
+    }
+    readyCount++;
+    return { ...item, status: 'ready', reason: 'جاهز للتسمية' };
+  });
+
+  // تحديث ملخص المعاينة
+  if (conflictCount > 0) {
+    batchSummaryBanner.style.borderColor = 'rgba(248,113,113,0.7)';
+    batchSummaryBanner.innerHTML =
+      `<span style="color:#f87171;">⚠️ يوجد <b>${conflictCount}</b> تعارض في الأسماء!</span> ` +
+      `جاهز: <b>${readyCount}</b> | بدون تغيير: <b>${skipCount}</b>.<br>` +
+      `<span style="font-size:11px; color:#cbd5e1;">لن يتم تغيير أي اسم متعارض؛ يمكنك اختيار عمود آخر أو المتابعة للصور السليمة فقط.</span>`;
+  } else {
+    batchSummaryBanner.style.borderColor = 'rgba(52,211,153,0.6)';
+    batchSummaryBanner.innerHTML =
+      `<span style="color:#34d399;">✓ المعاينة سليمة بدون تعارضات.</span> ` +
+      `سيتم إعادة تسمية <b>${readyCount}</b> صورة، وتبقى <b>${skipCount}</b> صورة على اسمها الحالي.`;
+  }
+
+  confirmBatchRenameBtn.disabled = readyCount === 0;
+  confirmBatchRenameBtn.textContent = `اعتماد وتنفيذ (${readyCount} صورة)`;
+
+  batchPreviewList.innerHTML = currentBatchPlan.map(item => {
+    if (item.status === 'ready') {
+      return `<div style="padding:6px 8px; border-radius:6px; background:rgba(16,185,129,0.12); border:1px solid rgba(52,211,153,0.3); font-size:12px;">
+        <div style="color:#e2e8f0;">${item.photo.name} ➔ <b style="color:#34d399;">${item.newName}</b></div>
+      </div>`;
+    }
+    if (item.status === 'conflict') {
+      return `<div style="padding:6px 8px; border-radius:6px; background:rgba(239,68,68,0.14); border:1px solid rgba(248,113,113,0.4); font-size:12px;">
+        <div style="color:#fca5a5;">${item.photo.name} ➔ <b>${item.newName}</b></div>
+        <div style="font-size:11px; color:#f87171;">${item.reason}</div>
+      </div>`;
+    }
+    return `<div style="padding:6px 8px; border-radius:6px; background:rgba(148,163,184,0.1); border:1px solid rgba(148,163,184,0.25); font-size:12px;">
+      <div style="color:#cbd5e1;">${item.photo.name} (يبقى كما هو)</div>
+      <div style="font-size:11px; color:#94a3b8;">${item.reason}</div>
+    </div>`;
+  }).join('');
+}
+
+if (openBatchRenameBtn) {
+  openBatchRenameBtn.addEventListener('click', () => {
+    if (window.selectedPhotoIds.size === 0) {
+      alert('يرجى تحديد صورة واحدة على الأقل أولاً.');
+      return;
+    }
+    if (!AssetEngine.hasLoaded()) {
+      alert('يرجى ربط ملف قاعدة بيانات الأصول (Excel / CSV) أولاً لاستخراج الأسماء منه.');
+      return;
+    }
+
+    const headers = AssetEngine.getHeaders();
+    batchColSelect.innerHTML = '';
+    if (headers.length > 0) {
+      headers.forEach(h => {
+        const opt = document.createElement('option');
+        opt.value = h;
+        opt.textContent = h;
+        batchColSelect.appendChild(opt);
+      });
+    } else {
+      batchColSelect.innerHTML = '<option value="__code__">كود الأصل</option><option value="__name__">اسم الأصل</option>';
+    }
+
+    buildBatchRenamePreview();
+    batchRenameModal.style.display = 'flex';
+  });
+}
+
+batchColSelect?.addEventListener('change', buildBatchRenamePreview);
+batchKeepSuffixChk?.addEventListener('change', buildBatchRenamePreview);
+document.getElementById('closeBatchRenameBtn')?.addEventListener('click', () => { batchRenameModal.style.display = 'none'; });
+document.getElementById('cancelBatchRenameBtn')?.addEventListener('click', () => { batchRenameModal.style.display = 'none'; });
+
+confirmBatchRenameBtn?.addEventListener('click', async () => {
+  const readyItems = currentBatchPlan.filter(i => i.status === 'ready');
+  if (readyItems.length === 0) return;
+
+  confirmBatchRenameBtn.disabled = true;
+  confirmBatchRenameBtn.textContent = 'جاري التنفيذ...';
+
+  const reportLines = [];
+  let renamedCount = 0;
+  let failedCount = 0;
+
+  for (const item of readyItems) {
+    const photo = item.photo;
+    const oldName = photo.name;
+    const newName = item.newName;
+
+    try {
+      // إذا كانت الصورة مصدّرة للمجلد، نحدّث اسم ملفها في المجلد مع حماية الملفات الموجودة
+      if (photo.folderExported) {
+        const dir = await ensureDirectoryAccess();
+        if (await fileExistsInDirectory(dir, newName)) {
+          throw new Error(`يوجد ملف باسم (${newName}) مسبقاً في المجلد`);
+        }
+        const blobToWrite = photo.finalBlob || photo.blob;
+        const newHandle = await dir.getFileHandle(newName, { create: true });
+        const writable = await newHandle.createWritable();
+        await writable.write(blobToWrite);
+        await writable.close();
+
+        try {
+          await dir.removeEntry(oldName);
+        } catch (delErr) {}
+      }
+
+      // تحديث اسم الملف فقط في التطبيق و IndexedDB دون المساس بالصورة أو العلامة المائية
+      photo.name = newName;
+      photo.updatedAt = Date.now();
+      await StorageEngine.updatePhoto({
+        id: photo.id,
+        name: photo.name,
+        subInfo: photo.subInfo || '',
+        rawBlob: photo.rawBlob || photo.blob,
+        finalBlob: photo.finalBlob || photo.blob,
+        thumbnailBlob: photo.thumbnailBlob || null,
+        assetSequence: photo.assetSequence || '',
+        assetCode: photo.assetCode || '',
+        assetName: photo.assetName || '',
+        watermarkApplied: !!photo.watermarkApplied,
+        qualityLevel: photo.qualityLevel || '',
+        folderExported: !!photo.folderExported,
+        createdAt: photo.createdAt || Date.now(),
+        updatedAt: photo.updatedAt
+      });
+
+      renamedCount++;
+      reportLines.push(`<div style="color:#34d399;">✓ <b>${oldName}</b> ➔ <b>${newName}</b></div>`);
+    } catch (err) {
+      failedCount++;
+      reportLines.push(`<div style="color:#f87171;">✕ <b>${oldName}</b>: تعذّر التحديث (${err.message || 'خطأ'}) — بقي الاسم القديم</div>`);
+    }
+  }
+
+  updateHistoryUI();
+  batchRenameModal.style.display = 'none';
+
+  // عرض تقرير نتيجة العملية في نافذة التقارير
+  appendModalTitle.textContent = '📋 نتيجة إعادة التسمية الجماعية';
+  appendFolderInfo.innerHTML = `تمت تسمية: <b style="color:#34d399;">${renamedCount}</b> | تعذّر/تعارض: <b style="color:#f87171;">${failedCount}</b>`;
+  appendOptionsWrap.style.display = 'none';
+  retryFailedAppendBtn.style.display = 'none';
+  operationReportList.style.display = 'flex';
+  operationReportList.innerHTML = reportLines.join('');
+  appendFolderModal.style.display = 'flex';
+});
