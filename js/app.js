@@ -143,9 +143,21 @@ window.addEventListener('online', updateOnlineStatus);
 window.addEventListener('offline', updateOnlineStatus);
 updateOnlineStatus();
 
+async function restoreSavedDirectoryHandle() {
+  try {
+    const saved = await StorageEngine.getRecord('settings', 'savedDirectoryHandle');
+    if (saved && saved.handle) {
+      directoryHandle = saved.handle;
+      folderLabel.textContent = directoryHandle.name;
+      pickFolderBtn.classList.add('btn-active-green');
+    }
+  } catch (e) {}
+}
+
 async function initAppStorage() {
   try {
     await StorageEngine.init();
+    await restoreSavedDirectoryHandle();
     await loadPhotosFromDB();
     await AssetEngine.loadFromDB();
     includeNameInWatermark.checked = AssetEngine.showNameInWatermark;
@@ -354,6 +366,7 @@ pickFolderBtn.addEventListener('click', async () => {
   }
   try {
     directoryHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    await StorageEngine.putRecord('settings', { key: 'savedDirectoryHandle', handle: directoryHandle, updatedAt: Date.now() }).catch(() => {});
     folderLabel.textContent = directoryHandle.name;
     pickFolderBtn.classList.add('btn-active-green');
     showToast(`✓ المجلد: ${directoryHandle.name}`);
@@ -762,6 +775,11 @@ async function finalizeSave(finalFileName, replaceIndex) {
 
     if (directoryHandle) {
       try {
+        let perm = await directoryHandle.queryPermission({ mode: 'readwrite' });
+        if (perm !== 'granted') {
+          perm = await directoryHandle.requestPermission({ mode: 'readwrite' });
+        }
+        if (perm !== 'granted') throw new Error('لم يُمنح إذن الكتابة للمجلد');
         const alreadyInFolder = await fileExistsInDirectory(directoryHandle, finalFileName);
         let allowWrite = true;
         if (alreadyInFolder) {
@@ -995,6 +1013,7 @@ async function ensureDirectoryAccess() {
     throw new Error('هذا المتصفح لا يدعم الوصول المباشر للمجلدات. تبقى صورك محفوظة داخل التطبيق ويمكنك تصديرها كـ ZIP أو مشاركتها.');
   }
   directoryHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+  await StorageEngine.putRecord('settings', { key: 'savedDirectoryHandle', handle: directoryHandle, updatedAt: Date.now() }).catch(() => {});
   folderLabel.textContent = directoryHandle.name;
   pickFolderBtn.classList.add('btn-active-green');
   return directoryHandle;
