@@ -984,17 +984,22 @@ function updateHistoryUI() {
     const checkboxHtml = window.isSelectionMode
       ? `<input type="checkbox" ${isChecked} onchange="togglePhotoSelection(${item.id}, this.checked)" style="width:17px; height:17px; min-width:17px; flex:0 0 17px; margin:0; accent-color:#38bdf8; cursor:pointer;" />`
       : '';
-    const statusBadge = item.folderExported
-      ? '<div style="line-height:1.2; margin-top:2px;"><span style="color:#34d399; font-size:11px; font-weight:600;">✓ بالمجلد</span></div>'
+    const checkMark = item.folderExported
+      ? '<span title="محفوظة في المجلد" style="color:#34d399; font-size:13px; font-weight:800; flex:0 0 auto;">✓</span>'
       : '';
+    const assetDetails = (item.assetName || item.assetCode)
+      ? [item.assetName, item.assetCode].filter(Boolean).join(' • ')
+      : (item.subInfo || '');
     return `
       <div class="drawer-item" style="display:flex; align-items:center; gap:8px; padding:8px; width:100%; box-sizing:border-box; overflow:hidden;">
         ${checkboxHtml}
         <img src="${item.thumbUrl}" onclick="openPhotoViewer(${idx})" alt="${cleanName}" style="width:46px; height:46px; min-width:46px; flex:0 0 46px; object-fit:cover; border-radius:8px; cursor:pointer;" />
-        <div onclick="openPhotoViewer(${idx})" style="flex:1 1 auto; min-width:0; overflow:hidden; cursor:pointer;">
-          <div style="font-weight:700; font-size:13px; color:#f8fafc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${cleanName}</div>
-          ${item.subInfo ? `<div style="font-size:11px; color:#7dd3fc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(item.subInfo)}</div>` : ''}
-          ${statusBadge}
+        <div onclick="openPhotoViewer(${idx})" style="flex:1 1 auto; min-width:0; overflow:hidden; cursor:pointer; display:flex; flex-direction:column; gap:3px;">
+          <div style="display:flex; align-items:center; gap:5px; min-width:0;">
+            <span style="font-weight:700; font-size:13px; color:#f8fafc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${cleanName}</span>
+            ${checkMark}
+          </div>
+          ${assetDetails ? `<div style="font-size:11px; color:#7dd3fc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(assetDetails)}</div>` : ''}
         </div>
         <div style="display:flex; align-items:center; gap:4px; flex:0 0 auto;">
           <button type="button" onclick="editExistingPhotoName(${idx})" title="تعديل الاسم" style="width:30px; height:30px; min-width:30px; padding:0; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.08); color:#fff; font-size:13px; cursor:pointer;">✏️</button>
