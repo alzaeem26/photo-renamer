@@ -1,7 +1,3 @@
-﻿$ErrorActionPreference = "Stop"
-
-# 1. تحديث js/storage.js (المعاملات الذرّية + حماية versionchange)
-@'
 const DB_NAME = 'AlzaeemCameraDB_v2';
 const DB_VERSION = 2;
 
