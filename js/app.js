@@ -910,7 +910,7 @@ function updateHistoryUI() {
           <img class="drawer-thumb" src="${item.thumbUrl || item.dataUrl}" alt="${item.name}">
           <div class="drawer-photo-info">
             <div style="display:flex; align-items:center; gap:5px;">
-              <span class="drawer-photo-name">${item.name}</span>
+              <span class="drawer-photo-name">${String(item.name || "").replace(/\.jpe?g$/i, "")}</span>
               ${statusIcon}
             </div>
             ${item.subInfo ? `<span class="drawer-photo-sub">${item.subInfo}</span>` : ''}
@@ -1370,15 +1370,28 @@ if (openBatchRenameBtn) {
 
     const headers = AssetEngine.getHeaders();
     batchColSelect.innerHTML = '';
-    if (headers.length > 0) {
+    if (headers.length > 1) {
       headers.forEach(h => {
         const opt = document.createElement('option');
         opt.value = h;
-        opt.textContent = h;
+        opt.textContent = `عمود: ${h}`;
         batchColSelect.appendChild(opt);
       });
     } else {
-      batchColSelect.innerHTML = '<option value="__code__">كود الأصل</option><option value="__name__">اسم الأصل</option>';
+      if (headers.length === 1) {
+        const opt0 = document.createElement('option');
+        opt0.value = headers[0];
+        opt0.textContent = `عمود: ${headers[0]}`;
+        batchColSelect.appendChild(opt0);
+      }
+      const optCode = document.createElement('option');
+      optCode.value = '__code__';
+      optCode.textContent = 'كود الأصل (المحفوظ بالقاعدة)';
+      const optName = document.createElement('option');
+      optName.value = '__name__';
+      optName.textContent = 'اسم الأصل (المحفوظ بالقاعدة)';
+      batchColSelect.appendChild(optCode);
+      batchColSelect.appendChild(optName);
     }
 
     buildBatchRenamePreview();
@@ -1465,6 +1478,9 @@ confirmBatchRenameBtn?.addEventListener('click', async () => {
   operationReportList.innerHTML = reportLines.join('');
   appendFolderModal.style.display = 'flex';
 });
+
+
+
 
 
 

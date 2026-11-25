@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = 'alzaeem-pwa-v1.1.5';
+﻿const CACHE_NAME = 'alzaeem-pwa-v1.1.7-dev';
 const APP_SHELL = [
   './',
   './index.html',
@@ -51,6 +51,8 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
+
+
 
 
 
