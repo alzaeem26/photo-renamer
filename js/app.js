@@ -750,6 +750,27 @@ async function finalizeSave(finalFileName, replaceIndex) {
         const writable = await fileHandle.createWritable();
         await writable.write(finalBlob);
         await writable.close();
+        const savedItem = sessionPhotos[replaceIndex !== -1 ? replaceIndex : sessionPhotos.length - 1];
+        if (savedItem) {
+          savedItem.folderExported = true;
+          await StorageEngine.updatePhoto({
+            id: savedItem.id,
+            name: savedItem.name,
+            subInfo: savedItem.subInfo || '',
+            rawBlob: savedItem.rawBlob || finalBlob,
+            finalBlob: finalBlob,
+            thumbnailBlob: savedItem.thumbnailBlob || null,
+            assetSequence: savedItem.assetSequence || '',
+            assetCode: savedItem.assetCode || '',
+            assetName: savedItem.assetName || '',
+            watermarkApplied: !!savedItem.watermarkApplied,
+            qualityLevel: savedItem.qualityLevel || '',
+            folderExported: true,
+            createdAt: savedItem.createdAt || Date.now(),
+            updatedAt: Date.now()
+          });
+          updateHistoryUI();
+        }
         showToast(`✓ حُفظت في المجلد: ${finalFileName}`);
       } catch (err) {
         showToast(`✓ حُفظت: ${finalFileName}`);
@@ -850,18 +871,48 @@ function updateHistoryUI() {
   if (count === 0) {
     historyList.innerHTML = '<span style="color:#94a3b8;">لا يوجد بعد</span>';
     drawerList.innerHTML = '<p style="color:#94a3b8; font-size:13px; text-align:center; margin-top:20px;">لم يتم التقاط صور بعد</p>';
+    const selCountEl = document.getElementById('selectedPhotosCountLabel');
+    if (selCountEl) selCountEl.textContent = '(0 محدد)';
+    const unexpBadge = document.getElementById('unexportedCountBadge');
+    if (unexpBadge) unexpBadge.style.display = 'none';
     return;
   }
+
+  if (!window.selectedPhotoIds) window.selectedPhotoIds = new Set();
+  const validIds = new Set(sessionPhotos.map(p => p.id));
+  for (const id of Array.from(window.selectedPhotoIds)) {
+    if (!validIds.has(id)) window.selectedPhotoIds.delete(id);
+  }
+  const selCountEl = document.getElementById('selectedPhotosCountLabel');
+  if (selCountEl) selCountEl.textContent = `(${window.selectedPhotoIds.size} محدد)`;
+
+  const unexportedCount = sessionPhotos.filter(p => !p.folderExported).length;
+  const unexpBadge = document.getElementById('unexportedCountBadge');
+  if (unexpBadge) {
+    unexpBadge.style.display = unexportedCount > 0 ? 'inline-block' : 'none';
+    unexpBadge.textContent = `غير مُصدّرة: ${unexportedCount}`;
+  }
+
   const lastFive = sessionPhotos.map((item, idx) => ({ ...item, originalIndex: idx })).slice(-5).reverse();
   historyList.innerHTML = lastFive.map(item => `<span class="history-item" onclick="openPhotoViewer(${item.originalIndex})">${item.name}</span>`).join('');
+
   const allReversed = sessionPhotos.map((item, idx) => ({ ...item, originalIndex: idx })).reverse();
-  drawerList.innerHTML = allReversed.map(item => `
-    <div class="drawer-photo-card">
-      <div class="drawer-card-left" onclick="openPhotoViewer(${item.originalIndex})">
-        <img class="drawer-thumb" src="${item.thumbUrl || item.dataUrl}" alt="${item.name}">
-        <div class="drawer-photo-info">
-          <span class="drawer-photo-name">${item.name}</span>
-          ${item.subInfo ? `<span class="drawer-photo-sub">${item.subInfo}</span>` : ''}
+  drawerList.innerHTML = allReversed.map(item => {
+    const isChecked = window.selectedPhotoIds.has(item.id) ? 'checked' : '';
+    const statusBadge = item.folderExported
+      ? `<span style="font-size:10px; color:#34d399; display:block;">✓ مُصدّرة للمجلد</span>`
+      : `<span style="font-size:10px; color:#fbbf24; display:block;">⚠️ غير مُصدّرة إلى مجلد</span>`;
+    return `
+    <div class="drawer-photo-card" style="${isChecked ? 'border-color:rgba(56,189,248,0.75); background:rgba(56,189,248,0.14);' : ''}">
+      <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
+        <input type="checkbox" class="photo-select-chk" data-photo-id="${item.id}" ${isChecked} onclick="event.stopPropagation(); togglePhotoSelection(${item.id}, this.checked)" style="width:19px; height:19px; accent-color:#38bdf8; cursor:pointer; flex-shrink:0;">
+        <div class="drawer-card-left" onclick="openPhotoViewer(${item.originalIndex})" style="flex:1; min-width:0;">
+          <img class="drawer-thumb" src="${item.thumbUrl || item.dataUrl}" alt="${item.name}">
+          <div class="drawer-photo-info">
+            <span class="drawer-photo-name">${item.name}</span>
+            ${item.subInfo ? `<span class="drawer-photo-sub">${item.subInfo}</span>` : ''}
+            ${statusBadge}
+          </div>
         </div>
       </div>
       <div class="drawer-card-actions">
@@ -870,7 +921,8 @@ function updateHistoryUI() {
         <button class="drawer-icon-btn" onclick="deleteSinglePhoto(${item.originalIndex})" title="حذف">🗑️</button>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 discardBtn.addEventListener('click', resetToCamera);
@@ -1411,3 +1463,4 @@ confirmBatchRenameBtn?.addEventListener('click', async () => {
   operationReportList.innerHTML = reportLines.join('');
   appendFolderModal.style.display = 'flex';
 });
+
