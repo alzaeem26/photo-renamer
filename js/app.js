@@ -639,7 +639,7 @@ fileNameInput.addEventListener('input', onInputChanged);
 
 saveNextSeqBtn.addEventListener('click', () => {
   const nextFull = saveNextSeqBtn.dataset.nextName;
-  if (nextFull) finalizeSave(nextFull, -1, requestDirectoryPermissionOnGesture());
+  if (nextFull) finalizeSave(nextFull, -1);
 });
 
 replaceOldBtn.addEventListener('click', () => {
@@ -648,7 +648,7 @@ replaceOldBtn.addEventListener('click', () => {
   const existingIdx = sessionPhotos.findIndex((p, idx) => idx !== editingIndex && p.name.toLowerCase() === targetName.toLowerCase());
   if (existingIdx === -1) return;
   if (confirm(`تنبيه: سيتم حذف الصورة القديمة (${targetName}) نهائياً واستبدالها بالصورة الجديدة، هل تريد المتابعة؟`)) {
-    finalizeSave(targetName, existingIdx, requestDirectoryPermissionOnGesture());
+    finalizeSave(targetName, existingIdx);
   }
 });
 
@@ -656,7 +656,6 @@ renameForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const rawName = fileNameInput.value.trim();
   if (!rawName) return;
-  const dirPermPromise = directoryHandle ? requestDirectoryPermissionOnGesture() : Promise.resolve(false);
   const safeName = rawName.replace(/[\\/:*?"<>|]/g, '-');
   const finalFileName = `${safeName}.jpg`;
   const dupIdx = checkDuplicateName();
@@ -665,10 +664,10 @@ renameForm.addEventListener('submit', (e) => {
     return;
   }
   duplicateBox.dataset.warned = '';
-  finalizeSave(finalFileName, -1, dirPermPromise);
+  finalizeSave(finalFileName, -1);
 });
 
-async function finalizeSave(finalFileName, replaceIndex, dirPermPromise = null) {
+async function finalizeSave(finalFileName, replaceIndex) {
   const cleanSeq = finalFileName.replace(/\.jpg$/i, '');
   const matchedAsset = lookupAssetByInput(cleanSeq);
   const subInfoText = matchedAsset ? `${matchedAsset.code} - ${matchedAsset.name}` : '';
@@ -782,32 +781,25 @@ async function finalizeSave(finalFileName, replaceIndex, dirPermPromise = null) 
     }
 
     updateHistoryUI();
+    showToast(`✓ حُفظت: ${finalFileName}`);
+    resetToCamera();
 
+    // الكتابة للمجلد في الخلفية بصمت فقط إذا كان الإذن ممنوحاً مسبقاً في هذه الجلسة (بدون إبطاء الكاميرا أو طلب إذن أثناء التصوير)
     if (directoryHandle) {
-      try {
-        let granted = dirPermPromise ? await dirPermPromise : false;
-        if (!granted) {
-          const q = await directoryHandle.queryPermission({ mode: 'readwrite' });
-          if (q === 'granted') {
-            granted = true;
-          } else {
-            granted = (await directoryHandle.requestPermission({ mode: 'readwrite' })) === 'granted';
-          }
-        }
-        if (!granted) throw new Error('انتهت صلاحية إذن المجلد — اضغط على زر المجلد بالأعلى لتأكيده');
-        const alreadyInFolder = await fileExistsInDirectory(directoryHandle, finalFileName);
-        let allowWrite = true;
-        if (alreadyInFolder) {
-          allowWrite = confirm(`⚠️ يوجد ملف باسم (${finalFileName}) مسبقاً داخل المجلد (${directoryHandle.name}).\n\n• موافق: استبدال الملف في المجلد.\n• إلغاء: الإبقاء على ملف المجلد وحفظ الصورة داخل التطبيق فقط.`);
-        }
-        if (!allowWrite) {
-          showToast(`✓ حُفظت داخل التطبيق فقط (تجنب استبدال ملف المجلد): ${finalFileName}`);
-        } else {
+      (async () => {
+        try {
+          const perm = await directoryHandle.queryPermission({ mode: 'readwrite' });
+          if (perm !== 'granted') return;
+
+          const alreadyInFolder = await fileExistsInDirectory(directoryHandle, finalFileName);
+          if (alreadyInFolder) return;
+
           const fileHandle = await directoryHandle.getFileHandle(finalFileName, { create: true });
           const writable = await fileHandle.createWritable();
           await writable.write(finalBlob);
           await writable.close();
-          const savedItem = sessionPhotos[replaceIndex !== -1 ? replaceIndex : sessionPhotos.length - 1];
+
+          const savedItem = sessionPhotos.find(p => p.name === finalFileName);
           if (savedItem) {
             savedItem.folderExported = true;
             await StorageEngine.updatePhoto({
@@ -829,20 +821,9 @@ async function finalizeSave(finalFileName, replaceIndex, dirPermPromise = null) 
             });
             updateHistoryUI();
           }
-          showToast(`✓ حُفظت داخل التطبيق والمجلد: ${finalFileName}`);
-        }
-      } catch (err) {
-        const isAndroidBlock = String(err && err.message || '').includes('not allowed by the user agent');
-        if (isAndroidBlock) {
-          showToast(`✓ حُفظت بالتطبيق: ${finalFileName} (استخدم ZIP للحفظ بذاكرة الهاتف)`);
-        } else {
-          showToast(`✓ حُفظت بالتطبيق فقط: ${finalFileName}`);
-        }
-      }
-    } else {
-      showToast(`✓ حُفظت داخل التطبيق: ${finalFileName}`);
+        } catch (e) {}
+      })();
     }
-    resetToCamera();
   } catch (err) {
     alert('فشل حفظ الصورة في قاعدة البيانات. تأكد من توفر مساحة كافية على الجهاز.');
   }
