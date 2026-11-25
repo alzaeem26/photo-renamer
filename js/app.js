@@ -12,19 +12,7 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-let isStartingCamera = false;
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden && typeof video !== 'undefined' && video && video.srcObject) {
-    try {
-      video.srcObject.getTracks().forEach(t => t.stop());
-      video.srcObject = null;
-    } catch (e) {}
-  } else if (!document.hidden && typeof startCamera === 'function' && !isStartingCamera && (!video || !video.srcObject || !video.srcObject.active)) {
-    isStartingCamera = true;
-    Promise.resolve().then(() => startCamera()).finally(() => {
-      setTimeout(() => { isStartingCamera = false; }, 1000);
-    });
-  }
+}
 });
 
 let pendingWorker = null;
@@ -812,9 +800,6 @@ async function finalizeSave(finalFileName, replaceIndex) {
       }
     } else {
       showToast(`✓ حُفظت داخل التطبيق: ${finalFileName}`);
-    }
-    } else {
-      showToast(`✓ حُفظت: ${finalFileName}`);
     }
     resetToCamera();
   } catch (err) {
