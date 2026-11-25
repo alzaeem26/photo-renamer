@@ -1517,3 +1517,59 @@ if (discardBtn) {
 // تشغيل قاعدة البيانات والكاميرا فور فتح التطبيق
 initAppStorage();
 startCamera();
+
+// ربط قائمة وأزرار النسخ الاحتياطي والاستعادة
+const backupMenuToggleBtn = document.getElementById('backupMenuToggleBtn');
+const backupActionsWrap = document.getElementById('backupActionsWrap');
+const backupExportBtn = document.getElementById('backupExportBtn');
+const backupRestoreBtn = document.getElementById('backupRestoreBtn');
+const backupRestoreInput = document.getElementById('backupRestoreInput');
+
+if (backupMenuToggleBtn && backupActionsWrap) {
+  backupMenuToggleBtn.addEventListener('click', () => {
+    const isHidden = backupActionsWrap.style.display === 'none' || !backupActionsWrap.style.display;
+    backupActionsWrap.style.display = isHidden ? 'flex' : 'none';
+  });
+}
+
+if (backupExportBtn) {
+  backupExportBtn.addEventListener('click', async () => {
+    backupExportBtn.disabled = true;
+    const origText = backupExportBtn.textContent;
+    backupExportBtn.textContent = '⏳ جاري تجهيز النسخة الاحتياطية...';
+    try {
+      const res = await BackupEngine.exportFullBackup(sessionPhotos);
+      showToast(`✓ تم تصدير النسخة (${res.photosCount} صورة)`);
+    } catch (err) {
+      alert('فشل تصدير النسخة الاحتياطية: ' + (err.message || ''));
+    } finally {
+      backupExportBtn.disabled = false;
+      backupExportBtn.textContent = origText;
+    }
+  });
+}
+
+if (backupRestoreBtn && backupRestoreInput) {
+  backupRestoreBtn.addEventListener('click', () => backupRestoreInput.click());
+  backupRestoreInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const mergeMode = confirm(
+      'اختر طريقة استعادة النسخة الاحتياطية:\n\n' +
+      '• اضغط [موافق] للدمج مع الصور الحالية (يمنع تكرار الصور المطابقة تلقائياً).\n' +
+      '• اضغط [إلغاء] للاستبدال الكامل للجلسة الحالية.'
+    );
+    try {
+      const stats = await BackupEngine.restoreBackup(file, sessionPhotos, { merge: mergeMode });
+      await loadPhotosFromDB();
+      await AssetEngine.loadFromDB();
+      includeNameInWatermark.checked = AssetEngine.showNameInWatermark;
+      updateDbBadgeUI();
+      showToast(`✓ استُعيدت ${stats.restoredPhotos} صورة` + (stats.skippedDuplicates ? ` (تُخطي ${stats.skippedDuplicates} مكررة)` : ''));
+    } catch (err) {
+      alert('فشل استعادة النسخة: ' + (err.message || ''));
+    } finally {
+      backupRestoreInput.value = '';
+    }
+  });
+}
