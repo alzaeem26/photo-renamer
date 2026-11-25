@@ -943,12 +943,12 @@ function updateHistoryUI() {
   const selCountEl = document.getElementById('selectedPhotosCountLabel');
   if (selCountEl) selCountEl.textContent = `(${window.selectedPhotoIds.size} محدد)`;
 
-  // شريط آخر 5 صور في الأسفل باسمها الكامل وقابل للضغط لفتح المعاينة
+  // شريط آخر 5 صور في الأسفل بدون لاحقة .jpg داخل إطار زجاجي مدمج وقابل للضغط
   const recent = sessionPhotos.slice(-5).reverse();
   historyList.innerHTML = recent.map((item, revIdx) => {
     const realIndex = sessionPhotos.length - 1 - revIdx;
-    const displayName = escapeHtml(String(item.name || ''));
-    return `<span class="history-chip" onclick="openPhotoViewer(${realIndex})" title="معاينة ${displayName}" style="cursor:pointer;">${displayName}</span>`;
+    const cleanName = escapeHtml(String(item.name || '').replace(/\.jpe?g$/i, ''));
+    return `<span class="history-chip" onclick="openPhotoViewer(${realIndex})" title="معاينة ${escapeHtml(item.name)}" style="display:inline-flex; align-items:center; justify-content:center; padding:2px 8px; border-radius:6px; background:rgba(255,255,255,0.1); border:1px solid rgba(125,211,252,0.35); color:#f8fafc; font-size:12px; font-weight:600; line-height:1.3; white-space:nowrap; cursor:pointer;">${cleanName}</span>`;
   }).join('');
 
   // قائمة اللوحة الجانبية بدون مثلث تحذير أو كلمة "بالتطبيق"
