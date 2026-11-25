@@ -10,7 +10,7 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-
+}
 
 let pendingWorker = null;
 const updateBanner = document.getElementById('updateBanner');
@@ -898,6 +898,47 @@ function updateHistoryUI() {
     return;
   }
 
+  const unexportedCount = sessionPhotos.filter(p => !p.folderExported).length;
+  const unexpBadge = document.getElementById('unexportedCountBadge');
+  if (unexpBadge) {
+    unexpBadge.style.display = unexportedCount > 0 ? 'inline-block' : 'none';
+    unexpBadge.textContent = `${unexportedCount} غير مُصدّرة`;
+  }
+
+  const selCountEl = document.getElementById('selectedPhotosCountLabel');
+  if (selCountEl) selCountEl.textContent = `(${window.selectedPhotoIds ? window.selectedPhotoIds.size : 0} محدد)`;
+
+  const recent = sessionPhotos.slice(-5).reverse();
+  historyList.innerHTML = recent.map((item) => {
+    const cleanName = escapeHtml(String(item.name || '').replace(/\.jpe?g$/i, ''));
+    const statusIcon = item.folderExported ? '✓' : '⚠️';
+    return `<span class="history-chip" title="${escapeHtml(item.name)}">${statusIcon} ${cleanName}</span>`;
+  }).join('');
+
+  drawerList.innerHTML = sessionPhotos.map((item, idx) => {
+    const cleanName = escapeHtml(String(item.name || '').replace(/\.jpe?g$/i, ''));
+    const isChecked = window.selectedPhotoIds && window.selectedPhotoIds.has(item.id) ? 'checked' : '';
+    const folderBadge = item.folderExported
+      ? '<span style="color:#34d399; font-size:11px;">✓ بالمجلد</span>'
+      : '<span style="color:#fbbf24; font-size:11px;">⚠️ بالتطبيق فقط</span>';
+    return `
+      <div class="drawer-item" style="display:flex; align-items:center; gap:8px; padding:8px; border-bottom:1px solid rgba(255,255,255,0.08);">
+        <input type="checkbox" ${isChecked} onchange="togglePhotoSelection(${item.id}, this.checked)" style="width:18px; height:18px; accent-color:#38bdf8;" />
+        <img src="${item.thumbUrl}" onclick="openPhotoViewer(${idx})" style="width:46px; height:46px; object-fit:cover; border-radius:6px; cursor:pointer;" />
+        <div style="flex:1; min-width:0; cursor:pointer;" onclick="openPhotoViewer(${idx})">
+          <div style="font-weight:600; font-size:13px; color:#f8fafc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${cleanName}</div>
+          ${item.subInfo ? `<div style="font-size:11px; color:#7dd3fc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(item.subInfo)}</div>` : ''}
+          <div>${folderBadge}</div>
+        </div>
+        <div style="display:flex; gap:4px;">
+          <button type="button" onclick="editExistingPhotoName(${idx})" class="secondary-btn" style="padding:5px 7px; font-size:12px;" title="تعديل الاسم">✏️</button>
+          <button type="button" onclick="shareSinglePhoto(${idx})" class="secondary-btn" style="padding:5px 7px; font-size:12px;" title="مشاركة">📤</button>
+          <button type="button" onclick="deleteSinglePhoto(${idx})" class="secondary-btn" style="padding:5px 7px; font-size:12px; color:#f87171;" title="حذف">🗑️</button>
+        </div>
+      </div>`;
+  }).reverse().join('');
+}
+
 window.selectedPhotoIds = new Set();
 let lastFailedAppendIds = [];
 
@@ -1458,3 +1499,20 @@ window.shareOrDownloadBatchPhotos = async function(photoIds) {
   closeAppendModal();
   showToast(`✓ تم تنزيل ${targets.length} صورة في ملف ZIP`);
 };
+
+function resetToCamera() {
+  renameModal.style.display = 'none';
+  previewImg.style.display = 'none';
+  previewImg.src = '';
+  video.style.display = 'block';
+  rawCapturedCanvas = null;
+  editingIndex = null;
+}
+
+if (discardBtn) {
+  discardBtn.addEventListener('click', resetToCamera);
+}
+
+// تشغيل قاعدة البيانات والكاميرا فور فتح التطبيق
+initAppStorage();
+startCamera();

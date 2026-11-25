@@ -1,11 +1,11 @@
-const CACHE_NAME = 'alzaeem-pwa-v1.2.5';
+const CACHE_NAME = 'alzaeem-pwa-v1.2.7';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.json',
   './css/app.css',
   './css/components.css',
-  './js/app.js?v=1.2.6',
+  './js/app.js?v=1.2.7',
   './js/storage.js',
   './js/image-engine.js',
   './js/assets.js',
