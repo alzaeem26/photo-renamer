@@ -357,6 +357,12 @@ pickFolderBtn.addEventListener('click', async () => {
     folderLabel.textContent = directoryHandle.name;
     pickFolderBtn.classList.add('btn-active-green');
     showToast(`✓ المجلد: ${directoryHandle.name}`);
+
+    // حفظ جميع الصور غير المصدّرة تلقائياً في المجلد فور اختياره
+    const pendingPhotos = sessionPhotos.filter(p => !p.folderExported);
+    if (pendingPhotos.length > 0 && typeof executeAppendToFolder === 'function') {
+      await executeAppendToFolder(pendingPhotos);
+    }
   } catch (err) {
     if (err.name !== 'AbortError') alert('لم يتم منح صلاحية الوصول للمجلد.');
   }
@@ -888,6 +894,17 @@ function updateHistoryUI() {
   if (zipSpan) zipSpan.textContent = count;
   drawerTotalCount.textContent = count;
   exportZipBtn.disabled = count === 0;
+
+  // تنظيف أي معرّفات محددة لم تعد موجودة في الجلسة لمنع ظهور عداد تحديد وهمي
+  if (!window.selectedPhotoIds) {
+    window.selectedPhotoIds = new Set();
+  } else {
+    const validIds = new Set(sessionPhotos.map(p => p.id));
+    for (const id of Array.from(window.selectedPhotoIds)) {
+      if (!validIds.has(id)) window.selectedPhotoIds.delete(id);
+    }
+  }
+
   if (count === 0) {
     historyList.innerHTML = '<span style="color:#94a3b8;">لا يوجد بعد</span>';
     drawerList.innerHTML = '<p style="color:#94a3b8; font-size:13px; text-align:center; margin-top:20px;">لم يتم التقاط صور بعد</p>';
@@ -906,22 +923,22 @@ function updateHistoryUI() {
   }
 
   const selCountEl = document.getElementById('selectedPhotosCountLabel');
-  if (selCountEl) selCountEl.textContent = `(${window.selectedPhotoIds ? window.selectedPhotoIds.size : 0} محدد)`;
+  if (selCountEl) selCountEl.textContent = `(${window.selectedPhotoIds.size} محدد)`;
 
-  // شريط آخر 5 صور في الأسفل بدون أي مثلث تحذيري
+  // شريط آخر 5 صور في الأسفل نظيف بدون أي رموز إضافية
   const recent = sessionPhotos.slice(-5).reverse();
   historyList.innerHTML = recent.map((item) => {
     const cleanName = escapeHtml(String(item.name || '').replace(/\.jpe?g$/i, ''));
     return `<span class="history-chip" title="${escapeHtml(item.name)}">${cleanName}</span>`;
   }).join('');
 
-  // قائمة اللوحة الجانبية بتخطيط متوازن يمنع انضغاط النص أو خروج الأزرار
+  // قائمة اللوحة الجانبية بدون مثلث تحذير أو كلمة "بالتطبيق"
   drawerList.innerHTML = sessionPhotos.map((item, idx) => {
     const cleanName = escapeHtml(String(item.name || '').replace(/\.jpe?g$/i, ''));
-    const isChecked = window.selectedPhotoIds && window.selectedPhotoIds.has(item.id) ? 'checked' : '';
+    const isChecked = window.selectedPhotoIds.has(item.id) ? 'checked' : '';
     const statusBadge = item.folderExported
-      ? '<span style="color:#34d399; font-size:11px; font-weight:600;">✓ بالمجلد</span>'
-      : '<span style="color:#fbbf24; font-size:11px; font-weight:600;">⚠️ بالتطبيق</span>';
+      ? '<div style="line-height:1.2; margin-top:2px;"><span style="color:#34d399; font-size:11px; font-weight:600;">✓ بالمجلد</span></div>'
+      : '';
     return `
       <div class="drawer-item" style="display:flex; align-items:center; gap:8px; padding:8px; width:100%; box-sizing:border-box; overflow:hidden;">
         <input type="checkbox" ${isChecked} onchange="togglePhotoSelection(${item.id}, this.checked)" style="width:17px; height:17px; min-width:17px; flex:0 0 17px; margin:0; accent-color:#38bdf8; cursor:pointer;" />
@@ -929,7 +946,7 @@ function updateHistoryUI() {
         <div onclick="openPhotoViewer(${idx})" style="flex:1 1 auto; min-width:0; overflow:hidden; cursor:pointer;">
           <div style="font-weight:700; font-size:13px; color:#f8fafc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${cleanName}</div>
           ${item.subInfo ? `<div style="font-size:11px; color:#7dd3fc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(item.subInfo)}</div>` : ''}
-          <div style="line-height:1.2; margin-top:2px;">${statusBadge}</div>
+          ${statusBadge}
         </div>
         <div style="display:flex; align-items:center; gap:4px; flex:0 0 auto;">
           <button type="button" onclick="editExistingPhotoName(${idx})" title="تعديل الاسم" style="width:30px; height:30px; min-width:30px; padding:0; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.08); color:#fff; font-size:13px; cursor:pointer;">✏️</button>
@@ -940,7 +957,7 @@ function updateHistoryUI() {
   }).reverse().join('');
 }
 
-window.selectedPhotoIds = new Set();
+if (!window.selectedPhotoIds) window.selectedPhotoIds = new Set();
 let lastFailedAppendIds = [];
 
 window.togglePhotoSelection = function(photoId, checked) {
