@@ -143,6 +143,15 @@ window.addEventListener('online', updateOnlineStatus);
 window.addEventListener('offline', updateOnlineStatus);
 updateOnlineStatus();
 
+function requestDirectoryPermissionOnGesture() {
+  if (!directoryHandle || typeof directoryHandle.requestPermission !== 'function') {
+    return Promise.resolve(false);
+  }
+  return directoryHandle.requestPermission({ mode: 'readwrite' })
+    .then(res => res === 'granted')
+    .catch(() => false);
+}
+
 async function restoreSavedDirectoryHandle() {
   try {
     const saved = await StorageEngine.getRecord('settings', 'savedDirectoryHandle');
@@ -630,7 +639,7 @@ fileNameInput.addEventListener('input', onInputChanged);
 
 saveNextSeqBtn.addEventListener('click', () => {
   const nextFull = saveNextSeqBtn.dataset.nextName;
-  if (nextFull) finalizeSave(nextFull, -1);
+  if (nextFull) finalizeSave(nextFull, -1, requestDirectoryPermissionOnGesture());
 });
 
 replaceOldBtn.addEventListener('click', () => {
@@ -639,7 +648,7 @@ replaceOldBtn.addEventListener('click', () => {
   const existingIdx = sessionPhotos.findIndex((p, idx) => idx !== editingIndex && p.name.toLowerCase() === targetName.toLowerCase());
   if (existingIdx === -1) return;
   if (confirm(`تنبيه: سيتم حذف الصورة القديمة (${targetName}) نهائياً واستبدالها بالصورة الجديدة، هل تريد المتابعة؟`)) {
-    finalizeSave(targetName, existingIdx);
+    finalizeSave(targetName, existingIdx, requestDirectoryPermissionOnGesture());
   }
 });
 
@@ -647,6 +656,7 @@ renameForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const rawName = fileNameInput.value.trim();
   if (!rawName) return;
+  const dirPermPromise = directoryHandle ? requestDirectoryPermissionOnGesture() : Promise.resolve(false);
   const safeName = rawName.replace(/[\\/:*?"<>|]/g, '-');
   const finalFileName = `${safeName}.jpg`;
   const dupIdx = checkDuplicateName();
@@ -655,10 +665,10 @@ renameForm.addEventListener('submit', (e) => {
     return;
   }
   duplicateBox.dataset.warned = '';
-  finalizeSave(finalFileName, -1);
+  finalizeSave(finalFileName, -1, dirPermPromise);
 });
 
-async function finalizeSave(finalFileName, replaceIndex) {
+async function finalizeSave(finalFileName, replaceIndex, dirPermPromise = null) {
   const cleanSeq = finalFileName.replace(/\.jpg$/i, '');
   const matchedAsset = lookupAssetByInput(cleanSeq);
   const subInfoText = matchedAsset ? `${matchedAsset.code} - ${matchedAsset.name}` : '';
@@ -775,11 +785,16 @@ async function finalizeSave(finalFileName, replaceIndex) {
 
     if (directoryHandle) {
       try {
-        let perm = await directoryHandle.queryPermission({ mode: 'readwrite' });
-        if (perm !== 'granted') {
-          perm = await directoryHandle.requestPermission({ mode: 'readwrite' });
+        let granted = dirPermPromise ? await dirPermPromise : false;
+        if (!granted) {
+          const q = await directoryHandle.queryPermission({ mode: 'readwrite' });
+          if (q === 'granted') {
+            granted = true;
+          } else {
+            granted = (await directoryHandle.requestPermission({ mode: 'readwrite' })) === 'granted';
+          }
         }
-        if (perm !== 'granted') throw new Error('لم يُمنح إذن الكتابة للمجلد');
+        if (!granted) throw new Error('انتهت صلاحية إذن المجلد — اضغط على زر المجلد بالأعلى لتأكيده');
         const alreadyInFolder = await fileExistsInDirectory(directoryHandle, finalFileName);
         let allowWrite = true;
         if (alreadyInFolder) {
@@ -817,7 +832,8 @@ async function finalizeSave(finalFileName, replaceIndex) {
           showToast(`✓ حُفظت داخل التطبيق والمجلد: ${finalFileName}`);
         }
       } catch (err) {
-        showToast(`✓ حُفظت داخل التطبيق فقط (تعذّرت الكتابة للمجلد): ${finalFileName}`);
+        const reason = err && err.message ? err.message : 'يرجى اختيار مجلد فرعي داخل المستندات/الصور';
+        showToast(`⚠️ حُفظت بالتطبيق فقط (${reason})`);
       }
     } else {
       showToast(`✓ حُفظت داخل التطبيق: ${finalFileName}`);
