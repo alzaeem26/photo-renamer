@@ -925,11 +925,12 @@ function updateHistoryUI() {
   const selCountEl = document.getElementById('selectedPhotosCountLabel');
   if (selCountEl) selCountEl.textContent = `(${window.selectedPhotoIds.size} محدد)`;
 
-  // شريط آخر 5 صور في الأسفل نظيف بدون أي رموز إضافية
+  // شريط آخر 5 صور في الأسفل باسمها الكامل وقابل للضغط لفتح المعاينة
   const recent = sessionPhotos.slice(-5).reverse();
-  historyList.innerHTML = recent.map((item) => {
-    const cleanName = escapeHtml(String(item.name || '').replace(/\.jpe?g$/i, ''));
-    return `<span class="history-chip" title="${escapeHtml(item.name)}">${cleanName}</span>`;
+  historyList.innerHTML = recent.map((item, revIdx) => {
+    const realIndex = sessionPhotos.length - 1 - revIdx;
+    const displayName = escapeHtml(String(item.name || ''));
+    return `<span class="history-chip" onclick="openPhotoViewer(${realIndex})" title="معاينة ${displayName}" style="cursor:pointer;">${displayName}</span>`;
   }).join('');
 
   // قائمة اللوحة الجانبية بدون مثلث تحذير أو كلمة "بالتطبيق"
