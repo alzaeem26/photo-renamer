@@ -395,64 +395,26 @@ select option { background: #0f172a; color: #fff; }
 }
 .checkbox-row input { width: 18px; height: 18px; accent-color: #10b981; }
 
-
-/* === Fix Side Drawer Vertical Touch Scrolling (v1.3.9) === */
-.side-drawer {
+/* === Unrestricted Side Drawer Vertical Scrolling (v1.4.2) === */
+#sideDrawer.side-drawer {
   display: flex !important;
   flex-direction: column !important;
-  height: 100vh !important;
-  height: 100dvh !important;
-  max-height: 100dvh !important;
-  overflow: hidden !important;
-  touch-action: pan-y !important;
-}
-
-.drawer-header,
-#drawerBulkToolbar {
-  flex: 0 0 auto !important;
-}
-
-.drawer-list {
-  flex: 1 1 auto !important;
-  min-height: 0 !important;
-  height: auto !important;
-  max-height: none !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
   -webkit-overflow-scrolling: touch !important;
   touch-action: pan-y !important;
-  overscroll-behavior-y: contain !important;
-}
-
-.drawer-list * {
-  touch-action: pan-y !important;
-}
-
-/* === Force Vertical Scroll & Touch Independence in Drawer (v1.4.0) === */
-#sideDrawer.side-drawer {
-  display: flex !important;
-  flex-direction: column !important;
-  position: fixed !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  height: 100% !important;
-  max-height: 100% !important;
-  overflow: hidden !important;
-  touch-action: pan-y !important;
+  padding-bottom: 28px !important;
 }
 
 #drawerList.drawer-list {
-  flex: 1 1 0% !important;
+  flex: 1 0 auto !important;
+  height: auto !important;
+  max-height: none !important;
   min-height: 0 !important;
-  height: 0 !important;
-  overflow-y: scroll !important;
-  overflow-x: hidden !important;
-  -webkit-overflow-scrolling: touch !important;
+  overflow: visible !important;
   touch-action: pan-y !important;
-  overscroll-behavior: contain !important;
-  pointer-events: auto !important;
 }
 
-#drawerList.drawer-list .drawer-item {
+#drawerList.drawer-list * {
   touch-action: pan-y !important;
 }

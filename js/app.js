@@ -920,7 +920,7 @@ function updateHistoryUI() {
   const count = sessionPhotos.length;
   const zipSpan = document.getElementById('zipCount');
   if (zipSpan) zipSpan.textContent = count;
-  drawerTotalCount.textContent = count;
+  if (drawerTotalCount) drawerTotalCount.textContent = count;
   exportZipBtn.disabled = count === 0;
 
   // تنظيف أي معرّفات محددة لم تعد موجودة في الجلسة لمنع ظهور عداد تحديد وهمي
