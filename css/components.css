@@ -427,3 +427,32 @@ select option { background: #0f172a; color: #fff; }
 .drawer-list * {
   touch-action: pan-y !important;
 }
+
+/* === Force Vertical Scroll & Touch Independence in Drawer (v1.4.0) === */
+#sideDrawer.side-drawer {
+  display: flex !important;
+  flex-direction: column !important;
+  position: fixed !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  touch-action: pan-y !important;
+}
+
+#drawerList.drawer-list {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: 0 !important;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
+  overscroll-behavior: contain !important;
+  pointer-events: auto !important;
+}
+
+#drawerList.drawer-list .drawer-item {
+  touch-action: pan-y !important;
+}

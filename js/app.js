@@ -907,6 +907,15 @@ clearSessionBtn.addEventListener('click', async () => {
   }
 });
 
+// ضمان حرية السحب العمودي باللمس داخل قائمة الصور في اللوحة الجانبية على الهواتف
+document.addEventListener('touchmove', (e) => {
+  if (e.target && e.target.closest && e.target.closest('#drawerList')) {
+    e.stopPropagation();
+  }
+}, { capture: true, passive: true });
+
+window.isSelectionMode = false;
+
 function updateHistoryUI() {
   const count = sessionPhotos.length;
   const zipSpan = document.getElementById('zipCount');
@@ -927,8 +936,13 @@ function updateHistoryUI() {
   if (count === 0) {
     historyList.innerHTML = '<span style="color:#94a3b8;">لا يوجد بعد</span>';
     drawerList.innerHTML = '<p style="color:#94a3b8; font-size:13px; text-align:center; margin-top:20px;">لم يتم التقاط صور بعد</p>';
+    window.isSelectionMode = false;
+    const selBtnEl = document.getElementById('selectAllPhotosBtn');
+    if (selBtnEl) selBtnEl.textContent = '☑️ تحديد';
+    const deselBtnEl = document.getElementById('deselectAllPhotosBtn');
+    if (deselBtnEl) deselBtnEl.style.display = 'none';
     const selCountEl = document.getElementById('selectedPhotosCountLabel');
-    if (selCountEl) selCountEl.textContent = '(0 محدد)';
+    if (selCountEl) { selCountEl.style.display = 'none'; selCountEl.textContent = '(0 محدد)'; }
     const unexpBadge = document.getElementById('unexportedCountBadge');
     if (unexpBadge) unexpBadge.style.display = 'none';
     return;
@@ -941,8 +955,19 @@ function updateHistoryUI() {
     unexpBadge.textContent = `${unexportedCount} غير مُصدّرة`;
   }
 
+  const selBtnEl = document.getElementById('selectAllPhotosBtn');
+  const deselBtnEl = document.getElementById('deselectAllPhotosBtn');
   const selCountEl = document.getElementById('selectedPhotosCountLabel');
-  if (selCountEl) selCountEl.textContent = `(${window.selectedPhotoIds.size} محدد)`;
+  if (selBtnEl) {
+    selBtnEl.textContent = window.isSelectionMode ? '☑️ تحديد الكل' : '☑️ تحديد';
+  }
+  if (deselBtnEl) {
+    deselBtnEl.style.display = window.isSelectionMode ? 'inline-block' : 'none';
+  }
+  if (selCountEl) {
+    selCountEl.style.display = window.isSelectionMode ? 'inline-block' : 'none';
+    selCountEl.textContent = `(${window.selectedPhotoIds.size} محدد)`;
+  }
 
   // شريط آخر 5 صور في الأسفل بدون لاحقة .jpg داخل إطار زجاجي مدمج وقابل للضغط
   const recent = sessionPhotos.slice(-5).reverse();
@@ -952,16 +977,19 @@ function updateHistoryUI() {
     return `<span class="history-chip" onclick="openPhotoViewer(${realIndex})" title="معاينة ${escapeHtml(item.name)}" style="display:inline-flex; align-items:center; justify-content:center; padding:2px 8px; border-radius:6px; background:rgba(255,255,255,0.1); border:1px solid rgba(125,211,252,0.35); color:#f8fafc; font-size:12px; font-weight:600; line-height:1.3; white-space:nowrap; cursor:pointer;">${cleanName}</span>`;
   }).join('');
 
-  // قائمة اللوحة الجانبية بدون مثلث تحذير أو كلمة "بالتطبيق"
+  // قائمة اللوحة الجانبية مع إظهار مربع التحديد فقط عند تفعيل وضع التحديد
   drawerList.innerHTML = sessionPhotos.map((item, idx) => {
     const cleanName = escapeHtml(String(item.name || '').replace(/\.jpe?g$/i, ''));
     const isChecked = window.selectedPhotoIds.has(item.id) ? 'checked' : '';
+    const checkboxHtml = window.isSelectionMode
+      ? `<input type="checkbox" ${isChecked} onchange="togglePhotoSelection(${item.id}, this.checked)" style="width:17px; height:17px; min-width:17px; flex:0 0 17px; margin:0; accent-color:#38bdf8; cursor:pointer;" />`
+      : '';
     const statusBadge = item.folderExported
       ? '<div style="line-height:1.2; margin-top:2px;"><span style="color:#34d399; font-size:11px; font-weight:600;">✓ بالمجلد</span></div>'
       : '';
     return `
       <div class="drawer-item" style="display:flex; align-items:center; gap:8px; padding:8px; width:100%; box-sizing:border-box; overflow:hidden;">
-        <input type="checkbox" ${isChecked} onchange="togglePhotoSelection(${item.id}, this.checked)" style="width:17px; height:17px; min-width:17px; flex:0 0 17px; margin:0; accent-color:#38bdf8; cursor:pointer;" />
+        ${checkboxHtml}
         <img src="${item.thumbUrl}" onclick="openPhotoViewer(${idx})" alt="${cleanName}" style="width:46px; height:46px; min-width:46px; flex:0 0 46px; object-fit:cover; border-radius:8px; cursor:pointer;" />
         <div onclick="openPhotoViewer(${idx})" style="flex:1 1 auto; min-width:0; overflow:hidden; cursor:pointer;">
           <div style="font-weight:700; font-size:13px; color:#f8fafc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${cleanName}</div>
@@ -990,13 +1018,18 @@ const selectAllPhotosBtn = document.getElementById('selectAllPhotosBtn');
 const deselectAllPhotosBtn = document.getElementById('deselectAllPhotosBtn');
 if (selectAllPhotosBtn) {
   selectAllPhotosBtn.addEventListener('click', () => {
-    sessionPhotos.forEach(p => window.selectedPhotoIds.add(p.id));
+    if (!window.isSelectionMode) {
+      window.isSelectionMode = true;
+    } else {
+      sessionPhotos.forEach(p => window.selectedPhotoIds.add(p.id));
+    }
     updateHistoryUI();
   });
 }
 if (deselectAllPhotosBtn) {
   deselectAllPhotosBtn.addEventListener('click', () => {
     window.selectedPhotoIds.clear();
+    window.isSelectionMode = false;
     updateHistoryUI();
   });
 }
