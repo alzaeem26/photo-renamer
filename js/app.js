@@ -10,10 +10,7 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-}
 
-}
-});
 
 let pendingWorker = null;
 const updateBanner = document.getElementById('updateBanner');

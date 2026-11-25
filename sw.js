@@ -1,4 +1,4 @@
-const CACHE_NAME = 'alzaeem-pwa-v1.2.4';
+const CACHE_NAME = 'alzaeem-pwa-v1.2.5-dev';
 const APP_SHELL = [
   './',
   './index.html',
