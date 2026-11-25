@@ -3,6 +3,26 @@ import { ImageEngine } from './image-engine.js';
 import { AssetEngine, KNOWN_SUFFIXES } from './assets.js';
 import { BackupEngine } from './backup.js';
 
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && typeof video !== 'undefined' && video && video.srcObject) {
+    try {
+      video.srcObject.getTracks().forEach(t => t.stop());
+      video.srcObject = null;
+    } catch (e) {}
+  } else if (!document.hidden && typeof startCamera === 'function' && (!video || !video.srcObject)) {
+    try { startCamera(); } catch (e) {}
+  }
+});
+
 let pendingWorker = null;
 const updateBanner = document.getElementById('updateBanner');
 const applyUpdateBtn = document.getElementById('applyUpdateBtn');
@@ -718,6 +738,7 @@ async function finalizeSave(finalFileName, replaceIndex) {
       };
     } else {
       const newRecord = {
+        uid: `uid_${now}_${finalBlob.size}_${finalFileName}`,
         name: finalFileName,
         subInfo: subInfoText,
         rawBlob: rawBlob,
@@ -746,35 +767,48 @@ async function finalizeSave(finalFileName, replaceIndex) {
 
     if (directoryHandle) {
       try {
-        const fileHandle = await directoryHandle.getFileHandle(finalFileName, { create: true });
-        const writable = await fileHandle.createWritable();
-        await writable.write(finalBlob);
-        await writable.close();
-        const savedItem = sessionPhotos[replaceIndex !== -1 ? replaceIndex : sessionPhotos.length - 1];
-        if (savedItem) {
-          savedItem.folderExported = true;
-          await StorageEngine.updatePhoto({
-            id: savedItem.id,
-            name: savedItem.name,
-            subInfo: savedItem.subInfo || '',
-            rawBlob: savedItem.rawBlob || finalBlob,
-            finalBlob: finalBlob,
-            thumbnailBlob: savedItem.thumbnailBlob || null,
-            assetSequence: savedItem.assetSequence || '',
-            assetCode: savedItem.assetCode || '',
-            assetName: savedItem.assetName || '',
-            watermarkApplied: !!savedItem.watermarkApplied,
-            qualityLevel: savedItem.qualityLevel || '',
-            folderExported: true,
-            createdAt: savedItem.createdAt || Date.now(),
-            updatedAt: Date.now()
-          });
-          updateHistoryUI();
+        const alreadyInFolder = await fileExistsInDirectory(directoryHandle, finalFileName);
+        let allowWrite = true;
+        if (alreadyInFolder) {
+          allowWrite = confirm(`⚠️ يوجد ملف باسم (${finalFileName}) مسبقاً داخل المجلد (${directoryHandle.name}).\n\n• موافق: استبدال الملف في المجلد.\n• إلغاء: الإبقاء على ملف المجلد وحفظ الصورة داخل التطبيق فقط.`);
         }
-        showToast(`✓ حُفظت في المجلد: ${finalFileName}`);
+        if (!allowWrite) {
+          showToast(`✓ حُفظت داخل التطبيق فقط (تجنب استبدال ملف المجلد): ${finalFileName}`);
+        } else {
+          const fileHandle = await directoryHandle.getFileHandle(finalFileName, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(finalBlob);
+          await writable.close();
+          const savedItem = sessionPhotos[replaceIndex !== -1 ? replaceIndex : sessionPhotos.length - 1];
+          if (savedItem) {
+            savedItem.folderExported = true;
+            await StorageEngine.updatePhoto({
+              id: savedItem.id,
+              uid: savedItem.uid || `uid_${savedItem.createdAt || Date.now()}_${finalBlob.size}_${savedItem.name}`,
+              name: savedItem.name,
+              subInfo: savedItem.subInfo || '',
+              rawBlob: savedItem.rawBlob || finalBlob,
+              finalBlob: finalBlob,
+              thumbnailBlob: savedItem.thumbnailBlob || null,
+              assetSequence: savedItem.assetSequence || '',
+              assetCode: savedItem.assetCode || '',
+              assetName: savedItem.assetName || '',
+              watermarkApplied: !!savedItem.watermarkApplied,
+              qualityLevel: savedItem.qualityLevel || '',
+              folderExported: true,
+              createdAt: savedItem.createdAt || Date.now(),
+              updatedAt: Date.now()
+            });
+            updateHistoryUI();
+          }
+          showToast(`✓ حُفظت داخل التطبيق والمجلد: ${finalFileName}`);
+        }
       } catch (err) {
-        showToast(`✓ حُفظت: ${finalFileName}`);
+        showToast(`✓ حُفظت داخل التطبيق فقط (تعذّرت الكتابة للمجلد): ${finalFileName}`);
       }
+    } else {
+      showToast(`✓ حُفظت داخل التطبيق: ${finalFileName}`);
+    }
     } else {
       showToast(`✓ حُفظت: ${finalFileName}`);
     }
@@ -878,158 +912,6 @@ function updateHistoryUI() {
     return;
   }
 
-  if (!window.selectedPhotoIds) window.selectedPhotoIds = new Set();
-  const validIds = new Set(sessionPhotos.map(p => p.id));
-  for (const id of Array.from(window.selectedPhotoIds)) {
-    if (!validIds.has(id)) window.selectedPhotoIds.delete(id);
-  }
-  const selCountEl = document.getElementById('selectedPhotosCountLabel');
-  if (selCountEl) selCountEl.textContent = `(${window.selectedPhotoIds.size} محدد)`;
-
-  const unexportedCount = sessionPhotos.filter(p => !p.folderExported).length;
-  const unexpBadge = document.getElementById('unexportedCountBadge');
-  if (unexpBadge) {
-    unexpBadge.style.display = unexportedCount > 0 ? 'inline-block' : 'none';
-    unexpBadge.textContent = `غير مُصدّرة: ${unexportedCount}`;
-  }
-
-  const lastFive = sessionPhotos.map((item, idx) => ({ ...item, originalIndex: idx })).slice(-5).reverse();
-  historyList.innerHTML = lastFive.map(item => `<span class="history-item" onclick="openPhotoViewer(${item.originalIndex})">${item.name}</span>`).join('');
-
-  const allReversed = sessionPhotos.map((item, idx) => ({ ...item, originalIndex: idx })).reverse();
-  drawerList.innerHTML = allReversed.map(item => {
-    const isChecked = window.selectedPhotoIds.has(item.id) ? 'checked' : '';
-    const statusIcon = item.folderExported
-      ? `<span title="مُصدّرة إلى مجلد" style="color:#34d399; font-size:13px; flex-shrink:0;">✓</span>`
-      : `<span title="غير مُصدّرة إلى مجلد" style="color:#fbbf24; font-size:13px; flex-shrink:0;">⚠️</span>`;
-    return `
-    <div class="drawer-photo-card" style="${isChecked ? 'border-color:rgba(56,189,248,0.75); background:rgba(56,189,248,0.14);' : ''}">
-      <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
-        <input type="checkbox" class="photo-select-chk" data-photo-id="${item.id}" ${isChecked} onclick="event.stopPropagation(); togglePhotoSelection(${item.id}, this.checked)" style="width:19px; height:19px; accent-color:#38bdf8; cursor:pointer; flex-shrink:0;">
-        <div class="drawer-card-left" onclick="openPhotoViewer(${item.originalIndex})" style="flex:1; min-width:0;">
-          <img class="drawer-thumb" src="${item.thumbUrl || item.dataUrl}" alt="${item.name}">
-          <div class="drawer-photo-info">
-            <div style="display:flex; align-items:center; gap:5px;">
-              <span class="drawer-photo-name">${String(item.name || "").replace(/\.jpe?g$/i, "")}</span>
-              ${statusIcon}
-            </div>
-            ${item.subInfo ? `<span class="drawer-photo-sub">${item.subInfo}</span>` : ''}
-          </div>
-        </div>
-      </div>
-      <div class="drawer-card-actions">
-        <button class="drawer-icon-btn" onclick="shareSinglePhoto(${item.originalIndex})" title="إرسال الصورة">📤</button>
-        <button class="drawer-icon-btn" onclick="editExistingPhotoName(${item.originalIndex})" title="تعديل الاسم">✏️</button>
-        <button class="drawer-icon-btn" onclick="deleteSinglePhoto(${item.originalIndex})" title="حذف">🗑️</button>
-      </div>
-    </div>
-  `;
-  }).join('');
-}
-
-discardBtn.addEventListener('click', resetToCamera);
-
-function resetToCamera() {
-  rawCapturedCanvas = null;
-  editingIndex = null;
-  duplicateBox.style.display = 'none';
-  duplicateBox.dataset.warned = '';
-  assetMatchBox.style.display = 'none';
-  renameModal.style.display = 'none';
-  previewImg.style.display = 'none';
-  video.style.display = 'block';
-}
-
-
-const backupMenuToggleBtn = document.getElementById('backupMenuToggleBtn');
-const backupActionsWrap = document.getElementById('backupActionsWrap');
-
-if (backupMenuToggleBtn && backupActionsWrap) {
-  backupMenuToggleBtn.addEventListener('click', () => {
-    const isHidden = backupActionsWrap.style.display === 'none';
-    if (isHidden) {
-      alert(
-        "سيظهر لك الآن خياران:\n\n" +
-        "1. 💾 تصدير نسخة احتياطية كاملة:\n" +
-        "يجمع جميع الصور (الخام والنهائية) مع قاعدة بيانات الأصول في ملف ZIP واحد آمن.\n\n" +
-        "2. ♻️ استعادة نسخة احتياطية:\n" +
-        "يعيد تحميل الصور وقاعدة الأصول من ملف النسخة الاحتياطية.\n\n" +
-        "الغاية: حماية بياناتك من الضياع أو نقلها بسهولة إلى جهاز آخر."
-      );
-      backupActionsWrap.style.display = 'flex';
-      backupMenuToggleBtn.textContent = '▲ إخفاء خيارات النسخ الاحتياطي';
-    } else {
-      backupActionsWrap.style.display = 'none';
-      backupMenuToggleBtn.textContent = '⚙️ النسخ الاحتياطي والاستعادة';
-    }
-  });
-}
-
-const backupExportBtn = document.getElementById('backupExportBtn');
-const backupRestoreBtn = document.getElementById('backupRestoreBtn');
-const backupRestoreInput = document.getElementById('backupRestoreInput');
-
-if (backupExportBtn) {
-  backupExportBtn.addEventListener('click', async () => {
-    backupExportBtn.disabled = true;
-    backupExportBtn.textContent = 'جاري تجهيز النسخة (0%)...';
-    try {
-      const { zipBlob, manifest } = await BackupEngine.exportFullBackup((pct) => {
-        backupExportBtn.textContent = `جاري تجهيز النسخة (${pct}%)...`;
-      });
-      const url = URL.createObjectURL(zipBlob);
-      const dateStr = new Date().toISOString().slice(0, 10);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Alzaeem_FullBackup_${dateStr}.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 15000);
-      showToast(`✓ تم تصدير نسخة احتياطية (${manifest.photosCount} صورة)`);
-    } catch (err) {
-      alert('فشل إنشاء النسخة الاحتياطية: ' + (err.message || ''));
-    } finally {
-      backupExportBtn.disabled = false;
-      backupExportBtn.textContent = '💾 تصدير نسخة احتياطية كاملة';
-    }
-  });
-}
-
-if (backupRestoreBtn && backupRestoreInput) {
-  backupRestoreBtn.addEventListener('click', () => backupRestoreInput.click());
-
-  backupRestoreInput.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    try {
-      const inspected = await BackupEngine.inspectBackup(file);
-      const { manifest } = inspected;
-      const msg = `تم فحص النسخة الاحتياطية بنجاح:\n• الصور: ${manifest.photosCount}\n• الأصول: ${manifest.assetsCount}\n• التاريخ: ${manifest.exportedAt.slice(0, 10)}\n\nهل تريد استبدال الصور الحالية بالنسخة المستعادة؟\n(موافق = استبدال | إلغاء = دمج مع الحالية)`;
-      const replaceExisting = confirm(msg);
-      const restoredCount = await BackupEngine.restoreFromInspected(inspected, replaceExisting);
-      await loadPhotosFromDB();
-      updateDbBadgeUI();
-      closeDrawer();
-      showToast(`✓ تمت استعادة ${restoredCount} صورة بنجاح`);
-    } catch (err) {
-      alert('تعذرت استعادة النسخة: ' + (err.message || ''));
-    } finally {
-      backupRestoreInput.value = '';
-    }
-  });
-}
-
-initAppStorage();
-startCamera();
-
-
-
-
-
-// ============================================================================
-// 1. أدوات تحديد الصور وإلحاقها بالمجلد
-// ============================================================================
 window.selectedPhotoIds = new Set();
 let lastFailedAppendIds = [];
 
@@ -1064,7 +946,7 @@ async function ensureDirectoryAccess() {
     } catch (e) {}
   }
   if (!('showDirectoryPicker' in window)) {
-    throw new Error('هذا المتصفح لا يدعم الوصول المباشر للمجلدات. تبقى صورك محفوظة بأمان داخل التطبيق ويمكنك تنزيلها كـ ZIP.');
+    throw new Error('هذا المتصفح لا يدعم الوصول المباشر للمجلدات. تبقى صورك محفوظة داخل التطبيق ويمكنك تصديرها كـ ZIP أو مشاركتها.');
   }
   directoryHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
   folderLabel.textContent = directoryHandle.name;
@@ -1076,8 +958,9 @@ async function fileExistsInDirectory(dirHandle, fileName) {
   try {
     await dirHandle.getFileHandle(fileName, { create: false });
     return true;
-  } catch (e) {
-    return false;
+  } catch (err) {
+    if (err && err.name === 'NotFoundError') return false;
+    throw err;
   }
 }
 
@@ -1109,12 +992,27 @@ async function executeAppendToFolder(targetPhotos) {
     return;
   }
 
-  // فحص وجود ملفات بنفس الأسماء في المجلد قبل الكتابة
   const existingFiles = [];
-  for (const p of targetPhotos) {
-    if (await fileExistsInDirectory(dir, p.name)) {
-      existingFiles.push(p.name);
+  try {
+    for (const p of targetPhotos) {
+      if (await fileExistsInDirectory(dir, p.name)) {
+        existingFiles.push(p.name);
+      }
     }
+  } catch (permErr) {
+    lastFailedAppendIds = targetPhotos.map(p => p.id);
+    appendOptionsWrap.style.display = 'none';
+    operationReportList.style.display = 'flex';
+    retryFailedAppendBtn.style.display = 'inline-block';
+    appendFolderInfo.innerHTML = `المجلد: <b>${escapeHtml(dir.name)}</b> | نجح: <b style="color:#34d399;">0</b> | تعذّر: <b style="color:#f87171;">${targetPhotos.length}</b>`;
+    const idsJson = JSON.stringify(lastFailedAppendIds);
+    operationReportList.innerHTML = `
+      <div style="color:#f87171;">✕ تعذّرت الكتابة المباشرة في المجلد (${escapeHtml(permErr.message || 'قيد صلاحيات النظام')}) — بقيت جميع الصور محفوظة داخل التطبيق.</div>
+      <div style="margin-top:8px; padding:10px; border-radius:8px; background:rgba(56,189,248,0.14); border:1px solid rgba(56,189,248,0.45);">
+        <div style="color:#7dd3fc; font-size:12px; margin-bottom:6px;">📱 <b>بديل الموبايل:</b> احفظ أو شارك الصور مباشرة عبر نظام الهاتف (لن تُعلّم كمُصدّرة لمجلد إلا بعد حفظها الفعلي):</div>
+        <button type="button" onclick='shareOrDownloadBatchPhotos(${idsJson})' class="btn-save" style="width:100%; padding:9px; font-size:12px; background:rgba(16,185,129,0.4); border:1px solid #34d399;">📤 حفظ / مشاركة الصور (${lastFailedAppendIds.length}) عبر الهاتف</button>
+      </div>`;
+    return;
   }
 
   let overwriteApproved = false;
@@ -1141,7 +1039,7 @@ async function executeAppendToFolder(targetPhotos) {
       const exists = existingFiles.includes(photo.name);
       if (exists && !overwriteApproved) {
         lastFailedAppendIds.push(photo.id);
-        reportLines.push(`<div style="color:#fbbf24;">⏭️ <b>${photo.name}</b>: تم التخطي (الملف موجود مسبقاً في المجلد)</div>`);
+        reportLines.push(`<div style="color:#fbbf24;">⏭️ <b>${escapeHtml(photo.name)}</b>: تم التخطي (الملف موجود مسبقاً في المجلد)</div>`);
         continue;
       }
 
@@ -1153,9 +1051,9 @@ async function executeAppendToFolder(targetPhotos) {
       await writable.write(blobToWrite);
       await writable.close();
 
-      photo.folderExported = true;
       await StorageEngine.updatePhoto({
         id: photo.id,
+        uid: photo.uid || `uid_${photo.createdAt || Date.now()}_${blobToWrite.size}_${photo.name}`,
         name: photo.name,
         subInfo: photo.subInfo || '',
         rawBlob: photo.rawBlob || blobToWrite,
@@ -1170,25 +1068,26 @@ async function executeAppendToFolder(targetPhotos) {
         createdAt: photo.createdAt || Date.now(),
         updatedAt: Date.now()
       });
+      photo.folderExported = true;
 
       successCount++;
-      reportLines.push(`<div style="color:#34d399;">✓ <b>${photo.name}</b>: نجح الحفظ في المجلد</div>`);
+      reportLines.push(`<div style="color:#34d399;">✓ <b>${escapeHtml(photo.name)}</b>: نجحت الكتابة في المجلد</div>`);
     } catch (err) {
       lastFailedAppendIds.push(photo.id);
-      reportLines.push(`<div style="color:#f87171;">✕ <b>${photo.name}</b>: فشل الحفظ (${err.message || 'خطأ وصول'}) — بقيت محفوظة في التطبيق</div>`);
+      reportLines.push(`<div style="color:#f87171;">✕ <b>${escapeHtml(photo.name)}</b>: فشل الحفظ (${escapeHtml(err.message || 'خطأ وصول')}) — بقيت محفوظة في التطبيق</div>`);
     }
   }
 
   updateHistoryUI();
-  appendFolderInfo.innerHTML = `المجلد: <b>${dir.name}</b> | نجح: <b style="color:#34d399;">${successCount}</b> | تعذّر/تخطي: <b style="color:#f87171;">${lastFailedAppendIds.length}</b>`;
+  appendFolderInfo.innerHTML = `المجلد: <b>${escapeHtml(dir.name)}</b> | نجح: <b style="color:#34d399;">${successCount}</b> | تعذّر/تخطي: <b style="color:#f87171;">${lastFailedAppendIds.length}</b>`;
   operationReportList.innerHTML = reportLines.join('');
   if (lastFailedAppendIds.length > 0) {
     retryFailedAppendBtn.style.display = 'inline-block';
     const idsJson = JSON.stringify(lastFailedAppendIds);
     operationReportList.innerHTML += `
       <div style="margin-top:8px; padding:10px; border-radius:8px; background:rgba(56,189,248,0.14); border:1px solid rgba(56,189,248,0.45);">
-        <div style="color:#7dd3fc; font-size:12px; margin-bottom:6px;">📱 <b>ملاحظة للموبايل:</b> متصفحات الهاتف تمنع الكتابة المباشرة في مجلدات النظام. استخدم الزر التالي لحفظ الصور دفعة واحدة عبر الهاتف بأسمائها:</div>
-        <button type="button" onclick='shareOrDownloadBatchPhotos(${idsJson})' class="btn-save" style="width:100%; padding:9px; font-size:12px; background:rgba(16,185,129,0.4); border:1px solid #34d399;">📤 حفظ / مشاركة الصور (${lastFailedAppendIds.length}) عبر الهاتف</button>
+        <div style="color:#7dd3fc; font-size:12px; margin-bottom:6px;">📱 <b>بديل الموبايل:</b> يمكنك مشاركة أو تنزيل الصور المتبقية عبر الهاتف (ستبقى حالة المجلد ⚠️ حتى تُكتب في مجلد فعلي):</div>
+        <button type="button" onclick='shareOrDownloadBatchPhotos(${idsJson})' class="btn-save" style="width:100%; padding:9px; font-size:12px; background:rgba(16,185,129,0.4); border:1px solid #34d399;">📤 مشاركة / تنزيل الصور (${lastFailedAppendIds.length})</button>
       </div>`;
   }
 }
@@ -1201,8 +1100,8 @@ if (openAppendFolderBtn) {
 
     appendModalTitle.textContent = '📂 إلحاق صور الجلسة بالمجلد';
     appendFolderInfo.innerHTML =
-      `• المجلد الحالي: <b>${directoryHandle ? directoryHandle.name : 'لم يُحدد بعد (سيُطلب عند التنفيذ)'}</b><br>` +
-      `• صور غير مُصدّرة: <b>${unexported.length}</b> | صور محددة: <b>${selected.length}</b>`;
+      `• المجلد الحالي: <b>${directoryHandle ? escapeHtml(directoryHandle.name) : 'لم يُحدد بعد (سيُطلب عند التنفيذ)'}</b><br>` +
+      `• صور غير مُصدّرة لمجلد: <b>${unexported.length}</b> | صور محددة: <b>${selected.length}</b>`;
 
     appendOptionsWrap.style.display = 'flex';
     operationReportList.style.display = 'none';
@@ -1220,23 +1119,17 @@ if (openAppendFolderBtn) {
 }
 
 document.getElementById('appendAllUnexportedBtn')?.addEventListener('click', () => {
-  const unexported = sessionPhotos.filter(p => !p.folderExported);
-  executeAppendToFolder(unexported);
+  executeAppendToFolder(sessionPhotos.filter(p => !p.folderExported));
 });
 
 document.getElementById('appendSelectedOnlyBtn')?.addEventListener('click', () => {
-  const selected = sessionPhotos.filter(p => window.selectedPhotoIds.has(p.id));
-  executeAppendToFolder(selected);
+  executeAppendToFolder(sessionPhotos.filter(p => window.selectedPhotoIds.has(p.id)));
 });
 
 retryFailedAppendBtn?.addEventListener('click', () => {
-  const retryList = sessionPhotos.filter(p => lastFailedAppendIds.includes(p.id));
-  executeAppendToFolder(retryList);
+  executeAppendToFolder(sessionPhotos.filter(p => lastFailedAppendIds.includes(p.id)));
 });
 
-// ============================================================================
-// 2. إعادة تسمية المحدد دفعة واحدة من أي عمود متكيف في قاعدة البيانات
-// ============================================================================
 const openBatchRenameBtn = document.getElementById('openBatchRenameBtn');
 const batchRenameModal = document.getElementById('batchRenameModal');
 const batchColSelect = document.getElementById('batchColSelect');
@@ -1254,15 +1147,14 @@ function sanitizeFileNamePart(val) {
     .replace(/\s+/g, ' ');
 }
 
-function buildBatchRenamePreview() {
+async function buildBatchRenamePreview() {
   const selectedCol = batchColSelect.value;
   const keepSuffix = batchKeepSuffixChk.checked;
   const selectedPhotos = sessionPhotos.filter(p => window.selectedPhotoIds.has(p.id));
 
   currentBatchPlan = [];
-  const proposedTargets = new Map(); // lowercaseName -> count
+  const proposedTargets = new Map();
 
-  // المرحلة 1: استخراج الاسم المقترح لكل صورة من سجلها المرتبط
   const draftItems = selectedPhotos.map(photo => {
     const rawLookupKey = photo.assetSequence || photo.name.replace(/\.jpg$/i, '');
     const { found, suffix } = AssetEngine.lookup(rawLookupKey);
@@ -1298,46 +1190,67 @@ function buildBatchRenamePreview() {
     return { photo, status: 'candidate', newName };
   });
 
-  // المرحلة 2: فحص التعارضات (تكرار داخل الدفعة أو تعارض مع صور أخرى في الجلسة)
   const unselectedNames = new Set(
     sessionPhotos
       .filter(p => !window.selectedPhotoIds.has(p.id))
       .map(p => p.name.toLowerCase())
   );
 
+  const batchExportedOldNames = new Set(
+    draftItems
+      .filter(i => i.status === 'candidate' && i.photo.folderExported)
+      .map(i => i.photo.name.toLowerCase())
+  );
+
   let readyCount = 0;
   let conflictCount = 0;
   let skipCount = 0;
 
-  currentBatchPlan = draftItems.map(item => {
+  currentBatchPlan = [];
+  for (const item of draftItems) {
     if (item.status !== 'candidate') {
       skipCount++;
-      return item;
+      currentBatchPlan.push(item);
+      continue;
     }
+
     const key = item.newName.toLowerCase();
     if ((proposedTargets.get(key) || 0) > 1) {
       conflictCount++;
-      return { ...item, status: 'conflict', reason: `تعارض: الاسم (${item.newName}) مكرر بين الصور المحددة` };
+      currentBatchPlan.push({ ...item, status: 'conflict', reason: `تعارض: الاسم (${item.newName}) مكرر بين الصور المحددة` });
+      continue;
     }
+
     if (unselectedNames.has(key)) {
       conflictCount++;
-      return { ...item, status: 'conflict', reason: `تعارض: الاسم (${item.newName}) مستخدم لصورة أخرى في الجلسة` };
+      currentBatchPlan.push({ ...item, status: 'conflict', reason: `تعارض: الاسم (${item.newName}) مستخدم لصورة أخرى في الجلسة` });
+      continue;
     }
-    readyCount++;
-    return { ...item, status: 'ready', reason: 'جاهز للتسمية' };
-  });
 
-  // تحديث ملخص المعاينة
+    if (item.photo.folderExported && directoryHandle && !batchExportedOldNames.has(key)) {
+      try {
+        if (await fileExistsInDirectory(directoryHandle, item.newName)) {
+          conflictCount++;
+          currentBatchPlan.push({ ...item, status: 'conflict', reason: `تعارض في المجلد: يوجد ملف باسم (${item.newName}) مسبقاً` });
+          continue;
+        }
+      } catch (e) {}
+    }
+
+    readyCount++;
+    currentBatchPlan.push({ ...item, status: 'ready', reason: 'جاهز للتسمية' });
+  }
+
   if (conflictCount > 0) {
     batchSummaryBanner.style.borderColor = 'rgba(248,113,113,0.7)';
     batchSummaryBanner.innerHTML =
       `<span style="color:#f87171;">⚠️ يوجد <b>${conflictCount}</b> تعارض في الأسماء!</span> ` +
       `جاهز: <b>${readyCount}</b> | بدون تغيير: <b>${skipCount}</b>.<br>` +
-      `<span style="font-size:11px; color:#cbd5e1;">لن يتم تغيير أي اسم متعارض؛ يمكنك اختيار عمود آخر أو المتابعة للصور السليمة فقط.</span>`;
+      `<span style="font-size:11px; color:#cbd5e1;">لن يتم المساس بأي اسم متعارض؛ يمكنك اختيار عمود آخر أو المتابعة للصور السليمة فقط.</span>`;
   } else {
     batchSummaryBanner.style.borderColor = 'rgba(52,211,153,0.6)';
     batchSummaryBanner.innerHTML =
-      `<span style="color:#34d399;">✓ المعاينة سليمة بدون تعارضات.</span> ` +
+      `<span style="color:#34d399;">✓ المعاينة سليمة بدون تعارضات (يدعم تبديل الأسماء تلقائياً).</span> ` +
       `سيتم إعادة تسمية <b>${readyCount}</b> صورة، وتبقى <b>${skipCount}</b> صورة على اسمها الحالي.`;
   }
 
@@ -1347,24 +1260,24 @@ function buildBatchRenamePreview() {
   batchPreviewList.innerHTML = currentBatchPlan.map(item => {
     if (item.status === 'ready') {
       return `<div style="padding:6px 8px; border-radius:6px; background:rgba(16,185,129,0.12); border:1px solid rgba(52,211,153,0.3); font-size:12px;">
-        <div style="color:#e2e8f0;">${item.photo.name} ➔ <b style="color:#34d399;">${item.newName}</b></div>
+        <div style="color:#e2e8f0;">${escapeHtml(item.photo.name)} ➔ <b style="color:#34d399;">${escapeHtml(item.newName)}</b></div>
       </div>`;
     }
     if (item.status === 'conflict') {
       return `<div style="padding:6px 8px; border-radius:6px; background:rgba(239,68,68,0.14); border:1px solid rgba(248,113,113,0.4); font-size:12px;">
-        <div style="color:#fca5a5;">${item.photo.name} ➔ <b>${item.newName}</b></div>
-        <div style="font-size:11px; color:#f87171;">${item.reason}</div>
+        <div style="color:#fca5a5;">${escapeHtml(item.photo.name)} ➔ <b>${escapeHtml(item.newName)}</b></div>
+        <div style="font-size:11px; color:#f87171;">${escapeHtml(item.reason)}</div>
       </div>`;
     }
     return `<div style="padding:6px 8px; border-radius:6px; background:rgba(148,163,184,0.1); border:1px solid rgba(148,163,184,0.25); font-size:12px;">
-      <div style="color:#cbd5e1;">${item.photo.name} (يبقى كما هو)</div>
-      <div style="font-size:11px; color:#94a3b8;">${item.reason}</div>
+      <div style="color:#cbd5e1;">${escapeHtml(item.photo.name)} (يبقى كما هو)</div>
+      <div style="font-size:11px; color:#94a3b8;">${escapeHtml(item.reason)}</div>
     </div>`;
   }).join('');
 }
 
 if (openBatchRenameBtn) {
-  openBatchRenameBtn.addEventListener('click', () => {
+  openBatchRenameBtn.addEventListener('click', async () => {
     if (window.selectedPhotoIds.size === 0) {
       alert('يرجى تحديد صورة واحدة على الأقل أولاً.');
       return;
@@ -1400,7 +1313,7 @@ if (openBatchRenameBtn) {
       batchColSelect.appendChild(optName);
     }
 
-    buildBatchRenamePreview();
+    await buildBatchRenamePreview();
     batchRenameModal.style.display = 'flex';
   });
 }
@@ -1415,44 +1328,74 @@ confirmBatchRenameBtn?.addEventListener('click', async () => {
   if (readyItems.length === 0) return;
 
   confirmBatchRenameBtn.disabled = true;
-  confirmBatchRenameBtn.textContent = 'جاري التنفيذ...';
+  confirmBatchRenameBtn.textContent = 'جاري التنفيذ الآمن...';
 
   const reportLines = [];
   let renamedCount = 0;
   let failedCount = 0;
 
+  const stagedDirItems = new Map();
+  for (const item of readyItems) {
+    const photo = item.photo;
+    if (!photo.folderExported) continue;
+
+    try {
+      const dir = await ensureDirectoryAccess();
+      const tempName = `__tmp_swap_${Date.now()}_${photo.id}_${photo.name}`;
+      const blobToWrite = photo.finalBlob || photo.blob;
+      const tmpHandle = await dir.getFileHandle(tempName, { create: true });
+      const writable = await tmpHandle.createWritable();
+      await writable.write(blobToWrite);
+      await writable.close();
+
+      let oldDeleted = true;
+      try {
+        await dir.removeEntry(photo.name);
+      } catch (delErr) {
+        oldDeleted = false;
+      }
+
+      stagedDirItems.set(photo.id, { dir, tempName, oldName: photo.name, oldDeleted });
+    } catch (dirErr) {
+      stagedDirItems.set(photo.id, { mobileFallback: true });
+    }
+  }
+
   for (const item of readyItems) {
     const photo = item.photo;
     const oldName = photo.name;
     const newName = item.newName;
+    const staged = stagedDirItems.get(photo.id);
+    let nextFolderExported = !!photo.folderExported;
+    let folderWarning = '';
 
     try {
-      // إذا كانت الصورة مصدّرة للمجلد، نحدّث اسم ملفها في المجلد مع حماية الملفات الموجودة
-      if (photo.folderExported) {
-        try {
-          const dir = await ensureDirectoryAccess();
-          if (await fileExistsInDirectory(dir, newName)) {
-            throw new Error(`يوجد ملف باسم (${newName}) مسبقاً في المجلد`);
-          }
-          const blobToWrite = photo.finalBlob || photo.blob;
-          const newHandle = await dir.getFileHandle(newName, { create: true });
-          const writable = await newHandle.createWritable();
-          await writable.write(blobToWrite);
-          await writable.close();
-          try { await dir.removeEntry(oldName); } catch (delErr) {}
-        } catch (dirErr) {
-          if (String(dirErr.message || '').includes('مسبقاً في المجلد')) throw dirErr;
-          // على الموبايل: نحدّث الاسم داخل التطبيق ونعيد الحالة إلى غير مصدّرة ليتمكن من تصديرها بالاسم الجديد
-          photo.folderExported = false;
+      if (staged && !staged.mobileFallback) {
+        const { dir, tempName, oldDeleted } = staged;
+        if (await fileExistsInDirectory(dir, newName)) {
+          try { await dir.removeEntry(tempName); } catch (e) {}
+          throw new Error(`يوجد ملف باسم (${newName}) مسبقاً في المجلد`);
         }
+
+        const blobToWrite = photo.finalBlob || photo.blob;
+        const finalHandle = await dir.getFileHandle(newName, { create: true });
+        const writable = await finalHandle.createWritable();
+        await writable.write(blobToWrite);
+        await writable.close();
+
+        try { await dir.removeEntry(tempName); } catch (e) {}
+        if (!oldDeleted) {
+          folderWarning = ` (تنبيه: تعذّر حذف الملف القديم ${oldName} من المجلد)`;
+        }
+      } else if (staged && staged.mobileFallback) {
+        nextFolderExported = false;
       }
 
-      // تحديث اسم الملف فقط في التطبيق و IndexedDB دون المساس بالصورة أو العلامة المائية
-      photo.name = newName;
-      photo.updatedAt = Date.now();
+      const updatedAt = Date.now();
       await StorageEngine.updatePhoto({
         id: photo.id,
-        name: photo.name,
+        uid: photo.uid || `uid_${photo.createdAt || updatedAt}_${(photo.finalBlob || photo.blob)?.size || 0}_${newName}`,
+        name: newName,
         subInfo: photo.subInfo || '',
         rawBlob: photo.rawBlob || photo.blob,
         finalBlob: photo.finalBlob || photo.blob,
@@ -1462,23 +1405,26 @@ confirmBatchRenameBtn?.addEventListener('click', async () => {
         assetName: photo.assetName || '',
         watermarkApplied: !!photo.watermarkApplied,
         qualityLevel: photo.qualityLevel || '',
-        folderExported: !!photo.folderExported,
-        createdAt: photo.createdAt || Date.now(),
-        updatedAt: photo.updatedAt
+        folderExported: nextFolderExported,
+        createdAt: photo.createdAt || updatedAt,
+        updatedAt
       });
 
+      photo.name = newName;
+      photo.folderExported = nextFolderExported;
+      photo.updatedAt = updatedAt;
+
       renamedCount++;
-      reportLines.push(`<div style="color:#34d399;">✓ <b>${oldName}</b> ➔ <b>${newName}</b></div>`);
+      reportLines.push(`<div style="color:#34d399;">✓ <b>${escapeHtml(oldName)}</b> ➔ <b>${escapeHtml(newName)}</b>${escapeHtml(folderWarning)}</div>`);
     } catch (err) {
       failedCount++;
-      reportLines.push(`<div style="color:#f87171;">✕ <b>${oldName}</b>: تعذّر التحديث (${err.message || 'خطأ'}) — بقي الاسم القديم</div>`);
+      reportLines.push(`<div style="color:#f87171;">✕ <b>${escapeHtml(oldName)}</b>: تعذّر التحديث (${escapeHtml(err.message || 'خطأ')}) — بقي الاسم القديم سليماً</div>`);
     }
   }
 
   updateHistoryUI();
   batchRenameModal.style.display = 'none';
 
-  // عرض تقرير نتيجة العملية في نافذة التقارير
   appendModalTitle.textContent = '📋 نتيجة إعادة التسمية الجماعية';
   appendFolderInfo.innerHTML = `تمت تسمية: <b style="color:#34d399;">${renamedCount}</b> | تعذّر/تعارض: <b style="color:#f87171;">${failedCount}</b>`;
   appendOptionsWrap.style.display = 'none';
@@ -1488,16 +1434,6 @@ confirmBatchRenameBtn?.addEventListener('click', async () => {
   appendFolderModal.style.display = 'flex';
 });
 
-
-
-
-
-
-
-
-// ============================================================================
-// 3. دعم الحفظ والمشاركة الدفعية للموبايل عند قيود المجلدات في أندرويد
-// ============================================================================
 window.shareOrDownloadBatchPhotos = async function(photoIds) {
   const targets = sessionPhotos.filter(p => photoIds.includes(p.id));
   if (targets.length === 0) return;
@@ -1510,36 +1446,14 @@ window.shareOrDownloadBatchPhotos = async function(photoIds) {
         title: `صور الجرد (${files.length})`,
         text: `تصدير ${files.length} صورة من كاميرا الزعيم`
       });
-
-      for (const p of targets) {
-        p.folderExported = true;
-        await StorageEngine.updatePhoto({
-          id: p.id,
-          name: p.name,
-          subInfo: p.subInfo || '',
-          rawBlob: p.rawBlob || p.blob,
-          finalBlob: p.finalBlob || p.blob,
-          thumbnailBlob: p.thumbnailBlob || null,
-          assetSequence: p.assetSequence || '',
-          assetCode: p.assetCode || '',
-          assetName: p.assetName || '',
-          watermarkApplied: !!p.watermarkApplied,
-          qualityLevel: p.qualityLevel || '',
-          folderExported: true,
-          createdAt: p.createdAt || Date.now(),
-          updatedAt: Date.now()
-        });
-      }
-      updateHistoryUI();
       closeAppendModal();
-      showToast(`✓ تمت مشاركة/حفظ ${targets.length} صورة بنجاح`);
+      showToast(`✓ تمت مشاركة ${targets.length} صورة (تبقى حالة المجلد ⚠️ حتى الحفظ في مجلد)`);
       return;
     }
   } catch (err) {
     if (err.name === 'AbortError') return;
   }
 
-  // بديل التنزيل كـ ZIP للصور المحددة إذا لم يدعم المتصفح مشاركة الملفات المتعددة
   const zip = new JSZip();
   for (const p of targets) {
     const blob = p.finalBlob || p.blob;
@@ -1555,26 +1469,6 @@ window.shareOrDownloadBatchPhotos = async function(photoIds) {
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 15000);
 
-  for (const p of targets) {
-    p.folderExported = true;
-    await StorageEngine.updatePhoto({
-      id: p.id,
-      name: p.name,
-      subInfo: p.subInfo || '',
-      rawBlob: p.rawBlob || p.blob,
-      finalBlob: p.finalBlob || p.blob,
-      thumbnailBlob: p.thumbnailBlob || null,
-      assetSequence: p.assetSequence || '',
-      assetCode: p.assetCode || '',
-      assetName: p.assetName || '',
-      watermarkApplied: !!p.watermarkApplied,
-      qualityLevel: p.qualityLevel || '',
-      folderExported: true,
-      createdAt: p.createdAt || Date.now(),
-      updatedAt: Date.now()
-    });
-  }
-  updateHistoryUI();
   closeAppendModal();
   showToast(`✓ تم تنزيل ${targets.length} صورة في ملف ZIP`);
 };

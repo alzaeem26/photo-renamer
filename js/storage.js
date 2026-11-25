@@ -1,4 +1,8 @@
-﻿const DB_NAME = 'AlzaeemCameraDB_v2';
+﻿$ErrorActionPreference = "Stop"
+
+# 1. تحديث js/storage.js (المعاملات الذرّية + حماية versionchange)
+@'
+const DB_NAME = 'AlzaeemCameraDB_v2';
 const DB_VERSION = 2;
 
 export const StorageEngine = {
@@ -33,6 +37,11 @@ export const StorageEngine = {
 
       request.onsuccess = (e) => {
         this.db = e.target.result;
+        this.db.onversionchange = () => {
+          this.db.close();
+          this.db = null;
+          alert('تم تحديث بنية قاعدة البيانات في نافذة أخرى؛ يرجى إعادة تحميل الصفحة.');
+        };
         this.putRecord('metadata', { key: 'schema', version: DB_VERSION, updatedAt: Date.now() }).catch(() => {});
         resolve(this.db);
       };
@@ -56,7 +65,7 @@ export const StorageEngine = {
 
       tx.oncomplete = () => resolve(resultData);
       tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error || new Error('تم إلغاء المعاملة'));
+      tx.onabort = () => reject(tx.error || new Error('تم إلغاء المعاملة وتراجع النظام لحماية البيانات'));
     });
   },
 
@@ -78,6 +87,46 @@ export const StorageEngine = {
 
   clearPhotos() {
     return this._tx('photos', 'readwrite', (store) => store.clear());
+  },
+
+  replaceAllPhotosAtomic(records) {
+    return new Promise((resolve, reject) => {
+      if (!this.db) return reject(new Error('قاعدة البيانات غير مهيأة'));
+      const tx = this.db.transaction('photos', 'readwrite');
+      const store = tx.objectStore('photos');
+
+      store.clear();
+      for (const rec of records) {
+        store.add(rec);
+      }
+
+      tx.oncomplete = () => resolve(records.length);
+      tx.onerror = () => {
+        try { tx.abort(); } catch (e) {}
+        reject(tx.error || new Error('فشل الاستبدال الذرّي؛ تم الحفاظ على البيانات السابقة'));
+      };
+      tx.onabort = () => reject(tx.error || new Error('تم التراجع عن الاستبدال وحماية البيانات السابقة'));
+    });
+  },
+
+  addPhotosBatchAtomic(records) {
+    return new Promise((resolve, reject) => {
+      if (!this.db) return reject(new Error('قاعدة البيانات غير مهيأة'));
+      if (!records || records.length === 0) return resolve(0);
+      const tx = this.db.transaction('photos', 'readwrite');
+      const store = tx.objectStore('photos');
+
+      for (const rec of records) {
+        store.add(rec);
+      }
+
+      tx.oncomplete = () => resolve(records.length);
+      tx.onerror = () => {
+        try { tx.abort(); } catch (e) {}
+        reject(tx.error || new Error('فشل الدمج الذرّي للصور'));
+      };
+      tx.onabort = () => reject(tx.error || new Error('تم التراجع عن الدمج'));
+    });
   },
 
   putRecord(storeName, record) {

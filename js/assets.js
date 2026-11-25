@@ -3,12 +3,13 @@
 export const KNOWN_SUFFIXES = ['-1', '-2', '-3', '-أمام', '-خلف'];
 
 export const AssetEngine = {
-  map: {},
+  map: Object.create(null),
   headers: [],
   fileName: '',
   showNameInWatermark: false,
   parsedRows: [],
   pendingFileName: '',
+  updatedAt: null,
 
   hasLoaded() {
     return Object.keys(this.map).length > 0;
@@ -30,32 +31,43 @@ export const AssetEngine = {
   async loadFromDB() {
     try {
       const res = await StorageEngine.getRecord('settings', 'assetsData');
-      if (res) {
-        this.map = res.map || {};
-        this.headers = res.headers || [];
+      if (res && res.map) {
+        const cleanMap = Object.create(null);
+        for (const k of Object.keys(res.map)) {
+          cleanMap[k] = res.map[k];
+        }
+        this.map = cleanMap;
+        this.headers = Array.isArray(res.headers) ? res.headers : [];
         this.fileName = res.fileName || 'ملف أصول محفوظ';
         this.showNameInWatermark = !!res.showName;
+        this.updatedAt = res.updatedAt || null;
       }
     } catch (e) {}
     return this.hasLoaded();
   },
 
   async saveToDB() {
+    const plainMap = {};
+    for (const k of Object.keys(this.map)) {
+      plainMap[k] = this.map[k];
+    }
     await StorageEngine.putRecord('settings', {
       key: 'assetsData',
-      map: this.map,
+      map: plainMap,
       headers: this.headers,
       fileName: this.fileName,
-      showName: this.showNameInWatermark
+      showName: this.showNameInWatermark,
+      updatedAt: this.updatedAt || Date.now()
     });
   },
 
   async clear() {
-    this.map = {};
+    this.map = Object.create(null);
     this.headers = [];
     this.fileName = '';
     this.pendingFileName = '';
     this.parsedRows = [];
+    this.updatedAt = null;
     await this.saveToDB();
   },
 
@@ -88,12 +100,19 @@ export const AssetEngine = {
   },
 
   buildAndValidate(seqCol, nameCol, codeCol, showName) {
-    const newMap = {};
+    if (!seqCol) {
+      throw new Error('يرجى تحديد عمود الرقم التسلسلي أولاً.');
+    }
+    const newMap = Object.create(null);
     let duplicatesCount = 0;
+    let emptySeqRows = 0;
 
     for (const row of this.parsedRows) {
       const seqVal = String(row[seqCol] ?? '').trim();
-      if (!seqVal) continue;
+      if (!seqVal) {
+        emptySeqRows++;
+        continue;
+      }
 
       if (Object.prototype.hasOwnProperty.call(newMap, seqVal)) {
         duplicatesCount++;
@@ -106,7 +125,12 @@ export const AssetEngine = {
       };
     }
 
-    return { newMap, total: Object.keys(newMap).length, duplicatesCount };
+    const total = Object.keys(newMap).length;
+    if (total === 0) {
+      throw new Error(`العمود المختار للتسلسل (${seqCol}) لا يحتوي على أي قيم صالحة!`);
+    }
+
+    return { newMap, total, duplicatesCount, emptySeqRows };
   },
 
   commitMap(newMap, showName) {
@@ -118,6 +142,7 @@ export const AssetEngine = {
       this.fileName = this.pendingFileName;
     }
     this.showNameInWatermark = !!showName;
+    this.updatedAt = Date.now();
     return this.saveToDB();
   },
 
@@ -137,7 +162,8 @@ export const AssetEngine = {
       }
     }
 
-    const found = this.map[clean] || this.map[baseSeq] || null;
+    const found = (Object.prototype.hasOwnProperty.call(this.map, clean) ? this.map[clean] : null)
+               || (Object.prototype.hasOwnProperty.call(this.map, baseSeq) ? this.map[baseSeq] : null);
     return { found, baseSeq, suffix: matchedSuffix };
   }
 };
