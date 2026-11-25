@@ -899,9 +899,9 @@ function updateHistoryUI() {
   const allReversed = sessionPhotos.map((item, idx) => ({ ...item, originalIndex: idx })).reverse();
   drawerList.innerHTML = allReversed.map(item => {
     const isChecked = window.selectedPhotoIds.has(item.id) ? 'checked' : '';
-    const statusBadge = item.folderExported
-      ? `<span style="font-size:10px; color:#34d399; display:block;">✓ مُصدّرة للمجلد</span>`
-      : `<span style="font-size:10px; color:#fbbf24; display:block;">⚠️ غير مُصدّرة إلى مجلد</span>`;
+    const statusIcon = item.folderExported
+      ? `<span title="مُصدّرة إلى مجلد" style="color:#34d399; font-size:13px; flex-shrink:0;">✓</span>`
+      : `<span title="غير مُصدّرة إلى مجلد" style="color:#fbbf24; font-size:13px; flex-shrink:0;">⚠️</span>`;
     return `
     <div class="drawer-photo-card" style="${isChecked ? 'border-color:rgba(56,189,248,0.75); background:rgba(56,189,248,0.14);' : ''}">
       <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
@@ -909,9 +909,11 @@ function updateHistoryUI() {
         <div class="drawer-card-left" onclick="openPhotoViewer(${item.originalIndex})" style="flex:1; min-width:0;">
           <img class="drawer-thumb" src="${item.thumbUrl || item.dataUrl}" alt="${item.name}">
           <div class="drawer-photo-info">
-            <span class="drawer-photo-name">${item.name}</span>
+            <div style="display:flex; align-items:center; gap:5px;">
+              <span class="drawer-photo-name">${item.name}</span>
+              ${statusIcon}
+            </div>
             ${item.subInfo ? `<span class="drawer-photo-sub">${item.subInfo}</span>` : ''}
-            ${statusBadge}
           </div>
         </div>
       </div>
@@ -1463,4 +1465,5 @@ confirmBatchRenameBtn?.addEventListener('click', async () => {
   operationReportList.innerHTML = reportLines.join('');
   appendFolderModal.style.display = 'flex';
 });
+
 
