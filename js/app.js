@@ -34,7 +34,7 @@ if (dismissUpdateBtn && updateBanner) {
   });
 }
 
-const CURRENT_APP_VERSION = '1.4.8';
+const CURRENT_APP_VERSION = '1.4.9';
 
 async function checkRemoteVersionUpdate() {
   try {
@@ -42,7 +42,6 @@ async function checkRemoteVersionUpdate() {
     if (!res.ok) return;
     const data = await res.json();
     if (data && data.version && data.version !== CURRENT_APP_VERSION) {
-      localStorage.setItem('alzaeem_update_deferred', 'true');
       if (updateBanner) updateBanner.style.display = 'flex';
     }
   } catch (e) {}
@@ -57,14 +56,9 @@ if ('serviceWorker' in navigator) {
   });
 
   navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((reg) => {
-    const promptUpdate = (worker) => {
-      if (worker) pendingWorker = worker;
-      localStorage.setItem('alzaeem_update_deferred', 'true');
-      if (updateBanner) updateBanner.style.display = 'flex';
-    };
-
     if (reg.waiting) {
-      promptUpdate(reg.waiting);
+      pendingWorker = reg.waiting;
+      if (updateBanner) updateBanner.style.display = 'flex';
     }
 
     reg.addEventListener('updatefound', () => {
@@ -72,55 +66,33 @@ if ('serviceWorker' in navigator) {
       if (!newWorker) return;
       newWorker.addEventListener('statechange', () => {
         if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          promptUpdate(newWorker);
+          pendingWorker = newWorker;
+          if (updateBanner) updateBanner.style.display = 'flex';
         }
       });
     });
 
     reg.update().catch(() => {});
     checkRemoteVersionUpdate();
-
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        reg.update().catch(() => {});
-        if (reg.waiting) promptUpdate(reg.waiting);
-        checkRemoteVersionUpdate();
-      }
-    });
   }).catch(() => {});
 }
 
 if (applyUpdateBtn) {
   applyUpdateBtn.addEventListener('click', () => {
-    localStorage.removeItem('alzaeem_update_deferred');
     applyUpdateBtn.disabled = true;
-    applyUpdateBtn.textContent = 'جاري تطبيق التحديث...';
+    applyUpdateBtn.textContent = 'جاري تحديث النظام...';
     if (pendingWorker) {
       pendingWorker.postMessage({ type: 'SKIP_WAITING' });
-      setTimeout(() => window.location.reload(), 1500);
+      setTimeout(() => { window.location.href = window.location.pathname + '?v=' + Date.now(); }, 1000);
     } else {
-      window.location.reload(true);
+      window.location.href = window.location.pathname + '?v=' + Date.now();
     }
   });
 }
 
 if (dismissUpdateBtn && updateBanner) {
   dismissUpdateBtn.addEventListener('click', () => {
-    localStorage.setItem('alzaeem_update_deferred', 'true');
     updateBanner.style.display = 'none';
   });
+});
 }
-
-// تشغيل تهيئة التخزين المحلي وفتح عدسة الكاميرا فور جاهزية الصفحة
-(async function bootApp() {
-  try {
-    if (typeof initAppStorage === 'function') {
-      await initAppStorage();
-    }
-  } catch (e) {}
-  try {
-    if (typeof startCamera === 'function') {
-      await startCamera();
-    }
-  } catch (e) {}
-})();
