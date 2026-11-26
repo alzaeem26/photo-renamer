@@ -1,4 +1,4 @@
-const CACHE_NAME = 'alzaeem-pwa-v1.4.5';
+const CACHE_NAME = 'alzaeem-pwa-v1.4.6';
 
 const CORE_ASSETS = [
   './',
@@ -19,7 +19,7 @@ const CORE_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
+  // لا نضع skipWaiting هنا ليبقى التحديث في حالة waiting حتى يوافق المستخدم أو يُفرض عند الفتح
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
       for (const asset of CORE_ASSETS) {
@@ -29,9 +29,7 @@ self.addEventListener('install', (event) => {
           if (res && res.ok) {
             await cache.put(asset, res.clone());
           }
-        } catch (err) {
-          // تجاهل أي أيقونة غير موجودة دون إيقاف تخزين بقية الملفات الأساسية
-        }
+        } catch (err) {}
       }
     })
   );
@@ -63,7 +61,6 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
-  // لطلبات التنقل (فتح التطبيق أو تحديث الصفحة): الكاش أولاً لضمان الإقلاع الفوري بدون نت
   if (event.request.mode === 'navigate') {
     event.respondWith(
       caches.match('./index.html', { ignoreSearch: true }).then((cachedPage) => {
@@ -83,11 +80,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // لملفات CSS و JS والمكتبات: الكاش أولاً مع تجاهل ?v=... لضمان عدم انهيار التنسيق أبداً
   event.respondWith(
     caches.match(event.request, { ignoreSearch: true }).then((cachedRes) => {
       if (cachedRes) {
-        // تحديث صامت في الخلفية إذا توفر الإنترنت
         fetch(event.request)
           .then((netRes) => {
             if (netRes && netRes.ok) {
