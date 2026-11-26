@@ -12,10 +12,14 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <title>كاميرا الزعيم للتصوير</title>
-  <link rel="stylesheet" href="./css/app.css?v=1.4.2">
-  <link rel="stylesheet" href="./css/components.css?v=1.4.2">
+  <link rel="stylesheet" href="./css/app.css?v=1.4.3">
+  <link rel="stylesheet" href="./css/components.css?v=1.4.3">
   <script src="./libraries/jszip.min.js"></script>
   <script src="./libraries/xlsx.full.min.js"></script>
+  <style id="criticalOfflineGuard">
+    html, body { margin: 0; padding: 0; background: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
+    .side-drawer:not(.open) { display: none; }
+  </style>
 </head>
 <body>
 
@@ -71,7 +75,7 @@
     <div class="drawer-header" style="display:flex; align-items:center; justify-content:space-between; gap:6px; padding:8px 10px;">
       <div style="display:flex; align-items:center; gap:6px;">
         <button type="button" id="backupMenuToggleBtn" class="secondary-btn" style="padding:5px 9px; font-size:11px;">⚙️ النسخ الاحتياطي</button>
-        <span id="appVersionLabel" style="font-size:11px; color:rgba(255,255,255,0.55);">v1.4.2</span>
+        <span id="appVersionLabel" style="font-size:11px; color:rgba(255,255,255,0.55);">v1.4.3</span>
       </div>
       <button class="drawer-close" id="closeDrawerBtn">✕</button>
     </div>
@@ -195,7 +199,7 @@
     </div>
   </div>
 
-  <script type="module" src="./js/app.js?v=1.4.2"></script>
+  <script type="module" src="./js/app.js?v=1.4.3"></script>
   <div id="updateBanner" style="display:none; position:fixed; top:56px; left:12px; right:12px; z-index:70; background:rgba(15,23,42,0.88); backdrop-filter:blur(16px); border:1px solid rgba(56,189,248,0.6); border-radius:14px; padding:12px; box-shadow:0 10px 30px rgba(0,0,0,0.5); flex-direction:column; gap:8px;">
     <div style="font-size:13px; font-weight:600; color:#f8fafc;">🚀 يتوفر تحديث جديد لكاميرا الزعيم</div>
     <div style="font-size:11px; color:#cbd5e1;">تم تنزيل الإصدار الجديد في الخلفية. يمكنك التحديث الآن أو المتابعة حتى تنتهي من التصوير.</div>

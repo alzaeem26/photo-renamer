@@ -1,11 +1,12 @@
-const CACHE_NAME = 'alzaeem-pwa-v1.4.2';
-const APP_SHELL = [
+const CACHE_NAME = 'alzaeem-pwa-v1.4.3';
+
+const CORE_ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './css/app.css?v=1.4.2',
-  './css/components.css?v=1.4.2',
-  './js/app.js?v=1.4.2',
+  './css/app.css',
+  './css/components.css',
+  './js/app.js',
   './js/storage.js',
   './js/image-engine.js',
   './js/assets.js',
@@ -13,13 +14,26 @@ const APP_SHELL = [
   './libraries/jszip.min.js',
   './libraries/xlsx.full.min.js',
   './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon-512.png',
+  './icons/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
+    caches.open(CACHE_NAME).then(async (cache) => {
+      for (const asset of CORE_ASSETS) {
+        try {
+          const req = new Request(asset, { cache: 'reload' });
+          const res = await fetch(req);
+          if (res && res.ok) {
+            await cache.put(asset, res.clone());
+          }
+        } catch (err) {
+          // تجاهل أي أيقونة غير موجودة دون إيقاف تخزين بقية الملفات الأساسية
+        }
+      }
+    })
   );
 });
 
@@ -27,34 +41,13 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
-        keys
-          .filter((k) => k.startsWith('alzaeem-pwa-') && k !== CACHE_NAME)
-          .map((k) => caches.delete(k))
+        keys.map((key) => {
+          if (key !== CACHE_NAME) {
+            return caches.delete(key);
+          }
+        })
       )
     ).then(() => self.clients.claim())
-  );
-});
-
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match('./index.html'))
-    );
-    return;
-  }
-
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request).then((response) => {
-        if (response && response.status === 200 && response.type === 'basic') {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        }
-        return response;
-      });
-    })
   );
 });
 
@@ -62,4 +55,56 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+});
+
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
+
+  // لطلبات التنقل (فتح التطبيق أو تحديث الصفحة): الكاش أولاً لضمان الإقلاع الفوري بدون نت
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      caches.match('./index.html', { ignoreSearch: true }).then((cachedPage) => {
+        const networkFetch = fetch(event.request)
+          .then((netRes) => {
+            if (netRes && netRes.ok) {
+              const copy = netRes.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', copy));
+            }
+            return netRes;
+          })
+          .catch(() => null);
+
+        return cachedPage || networkFetch;
+      })
+    );
+    return;
+  }
+
+  // لملفات CSS و JS والمكتبات: الكاش أولاً مع تجاهل ?v=... لضمان عدم انهيار التنسيق أبداً
+  event.respondWith(
+    caches.match(event.request, { ignoreSearch: true }).then((cachedRes) => {
+      if (cachedRes) {
+        // تحديث صامت في الخلفية إذا توفر الإنترنت
+        fetch(event.request)
+          .then((netRes) => {
+            if (netRes && netRes.ok) {
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, netRes.clone()));
+            }
+          })
+          .catch(() => {});
+        return cachedRes;
+      }
+
+      return fetch(event.request).then((netRes) => {
+        if (netRes && netRes.ok) {
+          const copy = netRes.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        }
+        return netRes;
+      });
+    })
+  );
 });
