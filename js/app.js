@@ -34,6 +34,20 @@ if (dismissUpdateBtn && updateBanner) {
   });
 }
 
+const CURRENT_APP_VERSION = '1.4.7';
+
+async function checkRemoteVersionUpdate() {
+  try {
+    const res = await fetch(`./version.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && data.version && data.version !== CURRENT_APP_VERSION) {
+      localStorage.setItem('alzaeem_update_deferred', 'true');
+      if (updateBanner) updateBanner.style.display = 'flex';
+    }
+  } catch (e) {}
+}
+
 if ('serviceWorker' in navigator) {
   let refreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -44,13 +58,11 @@ if ('serviceWorker' in navigator) {
 
   navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((reg) => {
     const promptUpdate = (worker) => {
-      if (!worker) return;
-      pendingWorker = worker;
+      if (worker) pendingWorker = worker;
       localStorage.setItem('alzaeem_update_deferred', 'true');
       if (updateBanner) updateBanner.style.display = 'flex';
     };
 
-    // إظهار الإشعار فوراً إذا كان هناك تحديث ينتظر مسبقاً (مؤجل أو جاهز)
     if (reg.waiting) {
       promptUpdate(reg.waiting);
     }
@@ -65,12 +77,14 @@ if ('serviceWorker' in navigator) {
       });
     });
 
-    // فحص فوري عن أي تحديث جديد عند فتح التطبيق وعند العودة إليه
     reg.update().catch(() => {});
+    checkRemoteVersionUpdate();
+
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         reg.update().catch(() => {});
         if (reg.waiting) promptUpdate(reg.waiting);
+        checkRemoteVersionUpdate();
       }
     });
   }).catch(() => {});
@@ -85,7 +99,7 @@ if (applyUpdateBtn) {
       pendingWorker.postMessage({ type: 'SKIP_WAITING' });
       setTimeout(() => window.location.reload(), 1500);
     } else {
-      window.location.reload();
+      window.location.reload(true);
     }
   });
 }

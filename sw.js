@@ -1,4 +1,4 @@
-const CACHE_NAME = 'alzaeem-pwa-v1.4.6';
+const CACHE_NAME = 'alzaeem-pwa-v1.4.7';
 
 const CORE_ASSETS = [
   './',
@@ -19,7 +19,6 @@ const CORE_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  // لا نضع skipWaiting هنا ليبقى التحديث في حالة waiting حتى يوافق المستخدم أو يُفرض عند الفتح
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
       for (const asset of CORE_ASSETS) {
@@ -61,37 +60,26 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
+  // استثناء ملف فحص الإصدارات version.json من الكاش تماماً ليفحص السيرفر دائماً
+  if (url.pathname.endsWith('/version.json')) {
+    event.respondWith(fetch(event.request, { cache: 'no-store' }));
+    return;
+  }
+
+  // لطلبات التنقل: الكاش أولاً دون استبدال index.html في الخلفية قبل موافقة المستخدم على التحديث
   if (event.request.mode === 'navigate') {
     event.respondWith(
       caches.match('./index.html', { ignoreSearch: true }).then((cachedPage) => {
-        const networkFetch = fetch(event.request)
-          .then((netRes) => {
-            if (netRes && netRes.ok) {
-              const copy = netRes.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', copy));
-            }
-            return netRes;
-          })
-          .catch(() => null);
-
-        return cachedPage || networkFetch;
+        return cachedPage || fetch(event.request);
       })
     );
     return;
   }
 
+  // للملفات الثابتة: الكاش أولاً لضمان العمل أوفلاين وثبات الإصدار الحالي حتى الموافقة على التحديث
   event.respondWith(
     caches.match(event.request, { ignoreSearch: true }).then((cachedRes) => {
-      if (cachedRes) {
-        fetch(event.request)
-          .then((netRes) => {
-            if (netRes && netRes.ok) {
-              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, netRes.clone()));
-            }
-          })
-          .catch(() => {});
-        return cachedRes;
-      }
+      if (cachedRes) return cachedRes;
 
       return fetch(event.request).then((netRes) => {
         if (netRes && netRes.ok) {
