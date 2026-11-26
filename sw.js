@@ -1,4 +1,4 @@
-const CACHE_NAME = 'alzaeem-pwa-v1.5.1';
+const CACHE_NAME = 'alzaeem-pwa-v1.5.2';
 
 const CORE_ASSETS = [
   './',
@@ -22,7 +22,11 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
       Promise.allSettled(
-        CORE_ASSETS.map((asset) => cache.add(asset).catch(() => null))
+        CORE_ASSETS.map((asset) =>
+          fetch(asset, { cache: 'reload' })
+            .then((res) => (res && res.ok ? cache.put(asset, res) : null))
+            .catch(() => null)
+        )
       )
     )
   );
@@ -30,15 +34,9 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
-        })
-      )
-    ).then(() => self.clients.claim())
+    caches.keys()
+      .then((keys) => Promise.all(keys.map((k) => (k !== CACHE_NAME ? caches.delete(k) : null))))
+      .then(() => self.clients.claim())
   );
 });
 
@@ -54,20 +52,23 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
-  if (url.pathname.endsWith('/version.json')) {
-    event.respondWith(fetch(event.request, { cache: 'no-store' }));
-    return;
-  }
-
+  // صفحة التطبيق الرئيسية: الشبكة أولاً لتجنب حبس أي نسخة قديمة، مع تراجع فوري للكاش عند انقطاع النت
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      caches.match('./index.html', { ignoreSearch: true }).then((cachedPage) => {
-        return cachedPage || fetch(event.request);
-      })
+      fetch(event.request)
+        .then((netRes) => {
+          if (netRes && netRes.ok) {
+            const copy = netRes.clone();
+            caches.open(CACHE_NAME).then((c) => c.put('./index.html', copy));
+          }
+          return netRes;
+        })
+        .catch(() => caches.match('./index.html', { ignoreSearch: true }))
     );
     return;
   }
 
+  // ملفات التنسيق والبرمجة والمكتبات: الكاش أولاً لسرعة البرق وأداء أوفلاين كامل
   event.respondWith(
     caches.match(event.request, { ignoreSearch: true }).then((cachedRes) => {
       if (cachedRes) return cachedRes;
@@ -75,7 +76,7 @@ self.addEventListener('fetch', (event) => {
       return fetch(event.request).then((netRes) => {
         if (netRes && netRes.ok) {
           const copy = netRes.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          caches.open(CACHE_NAME).then((c) => c.put(event.request, copy));
         }
         return netRes;
       });
