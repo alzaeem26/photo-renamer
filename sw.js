@@ -1,4 +1,4 @@
-const CACHE_NAME = 'alzaeem-pwa-v1.4.4';
+const CACHE_NAME = 'alzaeem-pwa-v1.4.5';
 
 const CORE_ASSETS = [
   './',

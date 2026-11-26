@@ -20,6 +20,7 @@ const dismissUpdateBtn = document.getElementById('dismissUpdateBtn');
 if (applyUpdateBtn) {
   applyUpdateBtn.addEventListener('click', () => {
     if (pendingWorker) {
+      localStorage.removeItem('alzaeem_update_deferred');
       pendingWorker.postMessage({ type: 'SKIP_WAITING' });
       window.location.reload();
     }
@@ -28,22 +29,33 @@ if (applyUpdateBtn) {
 
 if (dismissUpdateBtn && updateBanner) {
   dismissUpdateBtn.addEventListener('click', () => {
+    localStorage.setItem('alzaeem_update_deferred', 'true');
     updateBanner.style.display = 'none';
   });
 }
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').then((reg) => {
+    // فحص إذا كان هناك تحديث سابق تم تجاهله لإظهار الإشعار فوراً عند فتح التطبيق
+    const isUpdateDeferred = localStorage.getItem('alzaeem_update_deferred') === 'true';
+
     reg.addEventListener('updatefound', () => {
       const newWorker = reg.installing;
       if (!newWorker) return;
       newWorker.addEventListener('statechange', () => {
         if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
           pendingWorker = newWorker;
+          localStorage.setItem('alzaeem_update_deferred', 'true');
           if (updateBanner) updateBanner.style.display = 'flex';
         }
       });
     });
+
+    // إظهار الإشعار الإلزامي عند الفتح إذا كان هناك تحديث مؤجل
+    if (isUpdateDeferred && reg.waiting) {
+      pendingWorker = reg.waiting;
+      if (updateBanner) updateBanner.style.display = 'flex';
+    }
   }).catch(() => {});
 }
 
