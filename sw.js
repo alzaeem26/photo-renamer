@@ -1,4 +1,4 @@
-const CACHE_NAME = 'alzaeem-pwa-v1.4.7';
+const CACHE_NAME = 'alzaeem-pwa-v1.4.8';
 
 const CORE_ASSETS = [
   './',
@@ -20,17 +20,11 @@ const CORE_ASSETS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(async (cache) => {
-      for (const asset of CORE_ASSETS) {
-        try {
-          const req = new Request(asset, { cache: 'reload' });
-          const res = await fetch(req);
-          if (res && res.ok) {
-            await cache.put(asset, res.clone());
-          }
-        } catch (err) {}
-      }
-    })
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.allSettled(
+        CORE_ASSETS.map((asset) => cache.add(asset).catch(() => null))
+      )
+    )
   );
 });
 
@@ -60,13 +54,11 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
-  // استثناء ملف فحص الإصدارات version.json من الكاش تماماً ليفحص السيرفر دائماً
   if (url.pathname.endsWith('/version.json')) {
     event.respondWith(fetch(event.request, { cache: 'no-store' }));
     return;
   }
 
-  // لطلبات التنقل: الكاش أولاً دون استبدال index.html في الخلفية قبل موافقة المستخدم على التحديث
   if (event.request.mode === 'navigate') {
     event.respondWith(
       caches.match('./index.html', { ignoreSearch: true }).then((cachedPage) => {
@@ -76,7 +68,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // للملفات الثابتة: الكاش أولاً لضمان العمل أوفلاين وثبات الإصدار الحالي حتى الموافقة على التحديث
   event.respondWith(
     caches.match(event.request, { ignoreSearch: true }).then((cachedRes) => {
       if (cachedRes) return cachedRes;

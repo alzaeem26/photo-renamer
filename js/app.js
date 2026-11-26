@@ -34,7 +34,7 @@ if (dismissUpdateBtn && updateBanner) {
   });
 }
 
-const CURRENT_APP_VERSION = '1.4.7';
+const CURRENT_APP_VERSION = '1.4.8';
 
 async function checkRemoteVersionUpdate() {
   try {
@@ -110,3 +110,17 @@ if (dismissUpdateBtn && updateBanner) {
     updateBanner.style.display = 'none';
   });
 }
+
+// تشغيل تهيئة التخزين المحلي وفتح عدسة الكاميرا فور جاهزية الصفحة
+(async function bootApp() {
+  try {
+    if (typeof initAppStorage === 'function') {
+      await initAppStorage();
+    }
+  } catch (e) {}
+  try {
+    if (typeof startCamera === 'function') {
+      await startCamera();
+    }
+  } catch (e) {}
+})();
